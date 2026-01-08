@@ -304,7 +304,7 @@ Traditional MCP integration loads full tool schemas into the AI's context window
 
 Add this to your AI agent's system prompt for direct CLI access:
 
-```xml
+````xml
 ## MCP Servers
 
 You have access to MCP (Model Context Protocol) servers via the `mcp-cli` cli.
@@ -312,13 +312,13 @@ MCP provides tools for interacting with external systems like GitHub, databases,
 
 Available Commands:
 
-\`\`\`bash
+```bash
 mcp-cli                              # List all servers and tool names
 mcp-cli <server>                     # Show server tools and parameters
 mcp-cli <server>/<tool>              # Get tool JSON schema and descriptions
 mcp-cli <server>/<tool> '<json>'     # Call tool with JSON arguments
 mcp-cli grep "<pattern>"             # Search tools by name (glob pattern)
-\`\`\`
+```
 
 **Add `-d` to include tool descriptions** (e.g., `mcp-cli <server> -d`)
 
@@ -330,7 +330,7 @@ Workflow:
 
 ### Examples
 
-\`\`\`bash
+```bash
 # With inline JSON
 $ mcp-cli github/search_repositories '{"query": "mcp server", "per_page": 5}'
 
@@ -341,13 +341,13 @@ $ echo '{"query": "mcp"}' | mcp-cli github/search_repositories
 mcp-cli server/tool <<EOF
 {"content": "Text with 'single quotes' and \"double quotes\""}
 EOF
-\`\`\`
+```
 
 ### Rules
 
 1. **Always check schema first**: Run `mcp-cli <server> -d or `mcp-cli <server>/<tool>` before calling any tool
 3. **Quote JSON arguments**: Wrap JSON in single quotes to prevent shell interpretation
-```
+````
 
 ### Option 2: Agents Skill
 
