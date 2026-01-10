@@ -8,47 +8,36 @@ import { join, resolve } from 'node:path';
 import {
   ErrorCode,
   configInvalidJsonError,
-  configMissingFieldError,
   configNotFoundError,
   configSearchError,
   formatCliError,
   serverNotFoundError,
 } from './errors.js';
+import {
+  McpServersConfigSchema,
+  type McpServersConfig,
+  type ServerConfig,
+  type StdioServerConfig,
+  type HttpServerConfig,
+} from './config-schema.js';
+
+// Re-export types from Zod schema for convenience
+export type {
+  StdioServerConfig,
+  HttpServerConfig,
+  ServerConfig,
+  McpServersConfig,
+} from './config-schema.js';
 
 /**
- * stdio server configuration (local process)
- */
-export interface StdioServerConfig {
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-  cwd?: string;
-}
-
-/**
- * HTTP server configuration (remote)
- */
-export interface HttpServerConfig {
-  url: string;
-  headers?: Record<string, string>;
-  timeout?: number;
-}
-
-export type ServerConfig = StdioServerConfig | HttpServerConfig;
-
-export interface McpServersConfig {
-  mcpServers: Record<string, ServerConfig>;
-}
-
-/**
- * Check if a server config is HTTP-based
+ * Check if a server config is HTTP-based (has url property)
  */
 export function isHttpServer(config: ServerConfig): config is HttpServerConfig {
   return 'url' in config;
 }
 
 /**
- * Check if a server config is stdio-based
+ * Check if a server config is stdio-based (has command property)
  */
 export function isStdioServer(
   config: ServerConfig,
@@ -264,19 +253,37 @@ export async function loadConfig(
   const file = Bun.file(configPath);
   const content = await file.text();
 
-  let config: McpServersConfig;
+  let configData: unknown;
   try {
-    config = JSON.parse(content);
+    configData = JSON.parse(content);
   } catch (e) {
     throw new Error(
       formatCliError(configInvalidJsonError(configPath, (e as Error).message)),
     );
   }
 
-  // Validate structure
-  if (!config.mcpServers || typeof config.mcpServers !== 'object') {
-    throw new Error(formatCliError(configMissingFieldError(configPath)));
+  // Validate with Zod
+  const parseResult = McpServersConfigSchema.safeParse(configData);
+
+  if (!parseResult.success) {
+    const issues = parseResult.error.issues;
+    const firstIssue = issues[0];
+    const path = firstIssue?.path.join('.') || 'root';
+
+    throw new Error(
+      formatCliError({
+        code: ErrorCode.CLIENT_ERROR,
+        type: 'CONFIG_VALIDATION_FAILED',
+        message: `Invalid configuration in ${configPath}`,
+        details: issues
+          .map((i) => `  - ${i.path.join('.')}: ${i.message}`)
+          .join('\n'),
+        suggestion: `Check your mcp_servers.json against the schema. Each server needs { "command": "..." } for stdio or { "url": "..." } for HTTP`,
+      }),
+    );
   }
+
+  const config = parseResult.data;
 
   // Warn if no servers are configured
   if (Object.keys(config.mcpServers).length === 0) {
@@ -285,53 +292,10 @@ export async function loadConfig(
     );
   }
 
-  // Validate individual server configs
-  for (const [serverName, serverConfig] of Object.entries(config.mcpServers)) {
-    if (!serverConfig || typeof serverConfig !== 'object') {
-      throw new Error(
-        formatCliError({
-          code: ErrorCode.CLIENT_ERROR,
-          type: 'CONFIG_INVALID_SERVER',
-          message: `Invalid server configuration for "${serverName}"`,
-          details: 'Server config must be an object',
-          suggestion: `Use { "command": "..." } for stdio or { "url": "..." } for HTTP`,
-        }),
-      );
-    }
-
-    const hasCommand = 'command' in serverConfig;
-    const hasUrl = 'url' in serverConfig;
-
-    if (!hasCommand && !hasUrl) {
-      throw new Error(
-        formatCliError({
-          code: ErrorCode.CLIENT_ERROR,
-          type: 'CONFIG_INVALID_SERVER',
-          message: `Server "${serverName}" missing required field`,
-          details: `Must have either "command" (for stdio) or "url" (for HTTP)`,
-          suggestion: `Add "command": "npx ..." for local servers or "url": "https://..." for remote servers`,
-        }),
-      );
-    }
-
-    if (hasCommand && hasUrl) {
-      throw new Error(
-        formatCliError({
-          code: ErrorCode.CLIENT_ERROR,
-          type: 'CONFIG_INVALID_SERVER',
-          message: `Server "${serverName}" has both "command" and "url"`,
-          details:
-            'A server must be either stdio (command) or HTTP (url), not both',
-          suggestion: `Remove one of "command" or "url"`,
-        }),
-      );
-    }
-  }
-
   // Substitute environment variables
-  config = substituteEnvVarsInObject(config);
+  const configWithEnv = substituteEnvVarsInObject(config);
 
-  return config;
+  return configWithEnv;
 }
 
 /**

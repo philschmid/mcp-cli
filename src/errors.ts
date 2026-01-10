@@ -86,16 +86,6 @@ export function configInvalidJsonError(
   };
 }
 
-export function configMissingFieldError(path: string): CliError {
-  return {
-    code: ErrorCode.CLIENT_ERROR,
-    type: 'CONFIG_MISSING_FIELD',
-    message: `Config file missing required "mcpServers" object`,
-    details: `File: ${path}`,
-    suggestion: 'Config must have structure: { "mcpServers": { ... } }',
-  };
-}
-
 // ============================================================================
 // Server Errors
 // ============================================================================

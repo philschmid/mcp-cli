@@ -1,4 +1,5 @@
 {
+  "$schema": "./mcp_servers.schema.json",
   "mcpServers": {
     "filesystem": {
       "command": "npx",

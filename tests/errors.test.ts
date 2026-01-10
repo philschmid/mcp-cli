@@ -8,7 +8,6 @@ import {
   configNotFoundError,
   configSearchError,
   configInvalidJsonError,
-  configMissingFieldError,
   serverNotFoundError,
   serverConnectionError,
   toolNotFoundError,
@@ -72,12 +71,6 @@ describe('errors', () => {
       const error = configInvalidJsonError('/config.json', 'Unexpected token');
       expect(error.type).toBe('CONFIG_INVALID_JSON');
       expect(error.details).toContain('Unexpected token');
-    });
-
-    test('configMissingFieldError mentions mcpServers', () => {
-      const error = configMissingFieldError('/config.json');
-      expect(error.type).toBe('CONFIG_MISSING_FIELD');
-      expect(error.message).toContain('mcpServers');
     });
   });
 
