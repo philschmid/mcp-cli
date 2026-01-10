@@ -34,6 +34,7 @@ Create `mcp_servers.json` in your current directory or `~/.config/mcp/`:
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/philschmid/mcp-cli/refs/heads/main/mcp_servers.schema.json",
   "mcpServers": {
     "filesystem": {
       "command": "npx",
@@ -229,6 +230,7 @@ The CLI uses `mcp_servers.json`, compatible with Claude Desktop, Gemini or VS Co
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/philschmid/mcp-cli/refs/heads/main/mcp_servers.schema.json",
   "mcpServers": {
     "local-server": {
       "command": "node",
