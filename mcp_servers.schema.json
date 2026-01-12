@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "mcpServers": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The command to execute (e.g., 'npx', 'node', '/path/to/server')"
+              },
+              "args": {
+                "description": "Arguments to pass to the command",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "env": {
+                "description": "Environment variables to set for the subprocess",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "cwd": {
+                "description": "Working directory for the subprocess (defaults to current directory)",
+                "type": "string"
+              }
+            },
+            "required": [
+              "command"
+            ],
+            "additionalProperties": {},
+            "description": "Stdio server configuration for running a local MCP server as a subprocess"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "The URL of the remote MCP server endpoint"
+              },
+              "headers": {
+                "description": "Custom HTTP headers to include with each request",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "timeout": {
+                "description": "Request timeout in milliseconds (default: 1800000 = 30 minutes)",
+                "type": "number"
+              }
+            },
+            "required": [
+              "url"
+            ],
+            "additionalProperties": {},
+            "description": "HTTP server configuration for connecting to a remote MCP server"
+          }
+        ],
+        "description": "Configuration for a single MCP server (either stdio or HTTP)"
+      },
+      "description": "Record of MCP server names to their configurations"
+    }
+  },
+  "required": [
+    "mcpServers"
+  ],
+  "additionalProperties": false,
+  "description": "Configuration file for Model Context Protocol (MCP) servers",
+  "$id": "https://mcp-cli.dev/schemas/mcp_servers.json"
+}

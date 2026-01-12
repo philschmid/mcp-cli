@@ -21,10 +21,12 @@
     "typecheck": "tsc --noEmit",
     "lint": "bunx --bun @biomejs/biome check src/",
     "lint:fix": "bunx --bun @biomejs/biome check --write src/",
-    "format": "bunx --bun @biomejs/biome format --write src/"
+    "format": "bunx --bun @biomejs/biome format --write src/",
+    "generate:schema": "bun run scripts/generate-json-schema.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.2"
+    "@modelcontextprotocol/sdk": "^1.25.2",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

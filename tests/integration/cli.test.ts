@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, mkdir, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { $ } from 'bun';
@@ -18,7 +18,10 @@ describe('CLI Integration Tests', () => {
 
   beforeAll(async () => {
     // Create temp directory for test files
-    tempDir = await mkdtemp(join(tmpdir(), 'mcp-cli-integration-'));
+    const rawTempDir = await mkdtemp(join(tmpdir(), 'mcp-cli-integration-'));
+    // Normalize path to resolve /var/folders -> /private/var/folders symlink
+    // This is required for MCP server path validation on macOS
+    tempDir = await realpath(rawTempDir);
 
     // Create a test file to read
     testFilePath = join(tempDir, 'test.txt');
