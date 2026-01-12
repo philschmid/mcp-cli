@@ -16,6 +16,7 @@ Access MCP servers through the command line. MCP enables interaction with extern
 | `mcp-cli <server>/<tool>` | Get tool JSON schema |
 | `mcp-cli <server>/<tool> '<json>'` | Call tool with arguments |
 | `mcp-cli grep "<glob>"` | Search tools by name |
+| `mcp-cli daemon start\|stop` | Manage persistent connections (for stateful servers) |
 
 **Add `-d` to include descriptions** (e.g., `mcp-cli filesystem -d`)
 

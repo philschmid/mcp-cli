@@ -22,6 +22,7 @@ import {
   getServerConfig,
   loadConfig,
 } from '../config.js';
+import { callViaDaemon, isDaemonRunning } from '../daemon.js';
 import {
   ErrorCode,
   formatCliError,
@@ -146,6 +147,36 @@ export async function callCommand(options: CallOptions): Promise<void> {
   } catch (error) {
     console.error((error as Error).message);
     process.exit(ErrorCode.CLIENT_ERROR);
+  }
+
+  if (await isDaemonRunning()) {
+    debug(`routing call through daemon: ${serverName}/${toolName}`);
+    try {
+      const result = await callViaDaemon(
+        serverName,
+        serverConfig,
+        toolName,
+        args,
+      );
+      if (options.json) {
+        console.log(formatJson(result));
+      } else {
+        console.log(formatToolResult(result));
+      }
+      return;
+    } catch (error) {
+      const errMsg = (error as Error).message;
+      if (errMsg.includes('not found') || errMsg.includes('unknown tool')) {
+        console.error(
+          formatCliError(toolNotFoundError(toolName, serverName, undefined)),
+        );
+      } else {
+        console.error(
+          formatCliError(toolExecutionError(toolName, serverName, errMsg)),
+        );
+      }
+      process.exit(ErrorCode.SERVER_ERROR);
+    }
   }
 
   let client: Client;

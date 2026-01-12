@@ -21,6 +21,12 @@ import {
   DEFAULT_TIMEOUT_SECONDS,
 } from './config.js';
 import {
+  daemonStatus,
+  getDaemonSocketPath,
+  startDaemon,
+  stopDaemon,
+} from './daemon.js';
+import {
   ErrorCode,
   formatCliError,
   missingArgumentError,
@@ -29,13 +35,14 @@ import {
 import { VERSION } from './version.js';
 
 interface ParsedArgs {
-  command: 'list' | 'grep' | 'info' | 'call' | 'help' | 'version';
+  command: 'list' | 'grep' | 'info' | 'call' | 'help' | 'version' | 'daemon';
   target?: string;
   pattern?: string;
   args?: string;
   json: boolean;
   withDescriptions: boolean;
   configPath?: string;
+  daemonAction?: 'start' | 'stop' | 'status';
 }
 
 /**
@@ -92,6 +99,16 @@ function parseArgs(args: string[]): ParsedArgs {
   // Determine command from positional arguments
   if (positional.length === 0) {
     result.command = 'list';
+  } else if (positional[0] === 'daemon') {
+    result.command = 'daemon';
+    const action = positional[1] as 'start' | 'stop' | 'status' | undefined;
+    if (!action || !['start', 'stop', 'status'].includes(action)) {
+      console.error(
+        formatCliError(missingArgumentError('daemon', 'start|stop|status')),
+      );
+      process.exit(ErrorCode.CLIENT_ERROR);
+    }
+    result.daemonAction = action;
   } else if (positional[0] === 'grep') {
     result.command = 'grep';
     result.pattern = positional[1];
@@ -123,6 +140,7 @@ function parseArgs(args: string[]): ParsedArgs {
  * Print help message
  */
 function printHelp(): void {
+  const socketPath = getDaemonSocketPath();
   console.log(`
 mcp-cli v${VERSION} - A lightweight CLI for MCP servers
 
@@ -132,6 +150,7 @@ Usage:
   mcp-cli [options] <server>                  Show server tools and parameters
   mcp-cli [options] <server>/<tool>           Show tool schema and description
   mcp-cli [options] <server>/<tool> <json>    Call tool with arguments
+  mcp-cli daemon <start|stop|status>          Manage persistent connection daemon
 
 Options:
   -h, --help               Show this help message
@@ -152,6 +171,8 @@ Environment Variables:
   MCP_MAX_RETRIES          Max retry attempts for transient errors (default: ${DEFAULT_MAX_RETRIES})
   MCP_RETRY_DELAY          Base retry delay in milliseconds (default: ${DEFAULT_RETRY_DELAY_MS})
   MCP_STRICT_ENV           Set to "false" to warn on missing env vars (default: true)
+  MCP_DAEMON_SOCKET        Daemon socket path (default: ${socketPath})
+  MCP_DAEMON_IDLE_MS       Daemon idle timeout in ms (default: 300000)
 
 Examples:
   mcp-cli                                    # List all servers
@@ -161,6 +182,13 @@ Examples:
   mcp-cli filesystem/read_file               # Show tool schema
   mcp-cli filesystem/read_file '{"path":"./README.md"}'  # Call tool
   echo '{"path":"./file"}' | mcp-cli server/tool -       # Read JSON from stdin
+
+Daemon Mode:
+  mcp-cli daemon start                       # Start persistent daemon
+  mcp-cli daemon status                      # Show daemon status
+  mcp-cli daemon stop                        # Stop daemon
+
+  When daemon is running, tool calls reuse connections for faster execution.
 
 Config File:
   The CLI looks for mcp_servers.json in:
@@ -219,6 +247,20 @@ async function main(): Promise<void> {
         json: args.json,
         configPath: args.configPath,
       });
+      break;
+
+    case 'daemon':
+      switch (args.daemonAction) {
+        case 'start':
+          await startDaemon();
+          break;
+        case 'stop':
+          await stopDaemon();
+          break;
+        case 'status':
+          await daemonStatus();
+          break;
+      }
       break;
   }
 }
