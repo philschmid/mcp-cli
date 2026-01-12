@@ -271,6 +271,8 @@ The CLI searches for configuration in this order:
 | `MCP_MAX_RETRIES` | Retry attempts for transient errors (0 = disable) | `3` |
 | `MCP_RETRY_DELAY` | Base retry delay (milliseconds) | `1000` |
 | `MCP_STRICT_ENV` | Error on missing `${VAR}` in config | `true` |
+| `MCP_DAEMON_SOCKET` | Daemon socket path | `~/.mcp-cli/daemon.sock` |
+| `MCP_DAEMON_IDLE_MS` | Daemon idle timeout (ms) | `300000` |
 
 ## Using with AI Agents
 
@@ -303,7 +305,11 @@ mcp-cli <server>                     # Show server tools and parameters
 mcp-cli <server>/<tool>              # Get tool JSON schema and descriptions
 mcp-cli <server>/<tool> '<json>'     # Call tool with JSON arguments
 mcp-cli grep "<pattern>"             # Search tools by name (glob pattern)
+mcp-cli daemon start                 # Start persistent connection daemon
+mcp-cli daemon stop                  # Stop daemon
 ```
+
+For stateful MCP servers (browser automation, database sessions), start the daemon first. Connections persist across calls.
 
 **Add `-d` to include tool descriptions** (e.g., `mcp-cli <server> -d`)
 
