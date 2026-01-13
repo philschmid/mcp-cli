@@ -12,9 +12,11 @@ import {
 } from '../client.js';
 import {
   type McpServersConfig,
+  findDisabledMatch,
   getServerConfig,
   listServerNames,
   loadConfig,
+  loadDisabledTools,
 } from '../config.js';
 import { ErrorCode } from '../errors.js';
 import { formatJson, formatServerList } from '../output.js';
@@ -123,8 +125,14 @@ export async function listCommand(options: ListOptions): Promise<void> {
     concurrencyLimit,
   );
 
-  // Sort by name to ensure consistent output order
   servers.sort((a, b) => a.name.localeCompare(b.name));
+
+  const disabledPatterns = await loadDisabledTools();
+  for (const server of servers) {
+    server.tools = server.tools.filter(
+      (t) => !findDisabledMatch(`${server.name}/${t.name}`, disabledPatterns),
+    );
+  }
 
   // Convert errors to tool-like display for human output
   const displayServers = servers.map((s) => ({

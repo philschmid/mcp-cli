@@ -254,3 +254,17 @@ export function missingArgumentError(
     suggestion: `Run 'mcp-cli --help' for usage examples`,
   };
 }
+
+export function toolDisabledError(
+  toolPath: string,
+  pattern: string,
+  source: string,
+): CliError {
+  return {
+    code: ErrorCode.CLIENT_ERROR,
+    type: 'TOOL_DISABLED',
+    message: `Tool "${toolPath}" is disabled`,
+    details: `Matched pattern "${pattern}" from ${source}`,
+    suggestion: 'Use alternative tools or approaches to complete this task',
+  };
+}
