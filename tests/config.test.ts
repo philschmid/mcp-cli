@@ -12,6 +12,8 @@ import {
   listServerNames,
   isHttpServer,
   isStdioServer,
+  loadDisabledTools,
+  findDisabledMatch,
 } from '../src/config';
 
 describe('config', () => {
@@ -238,6 +240,41 @@ describe('config', () => {
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
+    });
+  });
+
+  describe('disabled tools', () => {
+    test('findDisabledMatch matches exact patterns', () => {
+      const patterns = new Map([['server/tool', 'test']]);
+      expect(findDisabledMatch('server/tool', patterns)).toEqual({
+        pattern: 'server/tool',
+        source: 'test',
+      });
+      expect(findDisabledMatch('server/other', patterns)).toBeUndefined();
+    });
+
+    test('findDisabledMatch supports glob wildcards', () => {
+      const patterns = new Map([
+        ['server/*', 'test1'],
+        ['*/dangerous', 'test2'],
+      ]);
+      expect(findDisabledMatch('server/anything', patterns)?.pattern).toBe('server/*');
+      expect(findDisabledMatch('other/dangerous', patterns)?.pattern).toBe('*/dangerous');
+      expect(findDisabledMatch('other/safe', patterns)).toBeUndefined();
+    });
+
+    test('loadDisabledTools reads from environment variable', async () => {
+      process.env.MCP_DISABLED_TOOLS = 'server/tool1,server/tool2';
+      const patterns = await loadDisabledTools();
+      expect(patterns.get('server/tool1')).toBe('MCP_DISABLED_TOOLS');
+      expect(patterns.get('server/tool2')).toBe('MCP_DISABLED_TOOLS');
+      delete process.env.MCP_DISABLED_TOOLS;
+    });
+
+    test('loadDisabledTools returns empty map when no config', async () => {
+      delete process.env.MCP_DISABLED_TOOLS;
+      const patterns = await loadDisabledTools();
+      expect(patterns.size).toBe(0);
     });
   });
 });

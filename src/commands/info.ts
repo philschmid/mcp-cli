@@ -3,17 +3,20 @@
  */
 
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { connectToServer, getTool, listTools, safeClose } from '../client.js';
+import { connectToServer, listTools, safeClose } from '../client.js';
 import {
   type McpServersConfig,
   type ServerConfig,
+  findDisabledMatch,
   getServerConfig,
   loadConfig,
+  loadDisabledTools,
 } from '../config.js';
 import {
   ErrorCode,
   formatCliError,
   serverConnectionError,
+  toolDisabledError,
   toolNotFoundError,
 } from '../errors.js';
 import {
@@ -80,13 +83,37 @@ export async function infoCommand(options: InfoOptions): Promise<void> {
   }
 
   try {
+    const disabledPatterns = await loadDisabledTools();
+
     if (toolName) {
+      const disabledMatch = findDisabledMatch(
+        `${serverName}/${toolName}`,
+        disabledPatterns,
+      );
+      if (disabledMatch) {
+        console.error(
+          formatCliError(
+            toolDisabledError(
+              `${serverName}/${toolName}`,
+              disabledMatch.pattern,
+              disabledMatch.source,
+            ),
+          ),
+        );
+        process.exit(ErrorCode.CLIENT_ERROR);
+      }
+
       // Show specific tool schema
       const tools = await listTools(client);
       const tool = tools.find((t) => t.name === toolName);
 
       if (!tool) {
-        const availableTools = tools.map((t) => t.name);
+        const availableTools = tools
+          .filter(
+            (t) =>
+              !findDisabledMatch(`${serverName}/${t.name}`, disabledPatterns),
+          )
+          .map((t) => t.name);
         console.error(
           formatCliError(
             toolNotFoundError(toolName, serverName, availableTools),
@@ -110,12 +137,16 @@ export async function infoCommand(options: InfoOptions): Promise<void> {
       // Show server details
       const tools = await listTools(client);
 
+      const filteredTools = tools.filter(
+        (t) => !findDisabledMatch(`${serverName}/${t.name}`, disabledPatterns),
+      );
+
       if (options.json) {
         console.log(
           formatJson({
             name: serverName,
             config: serverConfig,
-            tools: tools.map((t) => ({
+            tools: filteredTools.map((t) => ({
               name: t.name,
               description: t.description,
               inputSchema: t.inputSchema,
@@ -127,7 +158,7 @@ export async function infoCommand(options: InfoOptions): Promise<void> {
           formatServerDetails(
             serverName,
             serverConfig,
-            tools,
+            filteredTools,
             options.withDescriptions,
           ),
         );

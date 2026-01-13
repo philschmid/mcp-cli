@@ -355,3 +355,72 @@ export function getServerConfig(
 export function listServerNames(config: McpServersConfig): string[] {
   return Object.keys(config.mcpServers);
 }
+
+export interface DisabledToolsMatch {
+  pattern: string;
+  source: string;
+}
+
+function globMatch(pattern: string, str: string): boolean {
+  const regex = new RegExp(
+    `^${pattern
+      .split('*')
+      .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('.*')}$`,
+  );
+  return regex.test(str);
+}
+
+function getDisabledToolsPaths(): string[] {
+  const home = homedir();
+  return [
+    join(home, '.config', 'mcp', 'disabled_tools'),
+    join(home, '.mcp_disabled_tools'),
+    resolve('./mcp_disabled_tools'),
+  ];
+}
+
+function parseDisabledToolsFile(content: string): string[] {
+  return content
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'));
+}
+
+export async function loadDisabledTools(): Promise<Map<string, string>> {
+  const patterns = new Map<string, string>();
+
+  for (const path of getDisabledToolsPaths()) {
+    if (existsSync(path)) {
+      const content = await Bun.file(path).text();
+      for (const pattern of parseDisabledToolsFile(content)) {
+        patterns.set(pattern, path);
+      }
+      debug(`Loaded ${patterns.size} disabled tool patterns from ${path}`);
+    }
+  }
+
+  const envPatterns = process.env.MCP_DISABLED_TOOLS;
+  if (envPatterns) {
+    for (const pattern of envPatterns
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean)) {
+      patterns.set(pattern, 'MCP_DISABLED_TOOLS');
+    }
+  }
+
+  return patterns;
+}
+
+export function findDisabledMatch(
+  toolPath: string,
+  patterns: Map<string, string>,
+): DisabledToolsMatch | undefined {
+  for (const [pattern, source] of patterns) {
+    if (globMatch(pattern, toolPath)) {
+      return { pattern, source };
+    }
+  }
+  return undefined;
+}

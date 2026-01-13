@@ -12,9 +12,11 @@ import {
 } from '../client.js';
 import {
   type McpServersConfig,
+  findDisabledMatch,
   getServerConfig,
   listServerNames,
   loadConfig,
+  loadDisabledTools,
 } from '../config.js';
 import { ErrorCode } from '../errors.js';
 import { formatJson, formatSearchResults } from '../output.js';
@@ -198,6 +200,11 @@ export async function grepCommand(options: GrepOptions): Promise<void> {
     }
   }
 
+  const disabledPatterns = await loadDisabledTools();
+  const filteredResults = allResults.filter(
+    (r) => !findDisabledMatch(`${r.server}/${r.tool.name}`, disabledPatterns),
+  );
+
   // Show failed servers warning
   if (failedServers.length > 0) {
     console.error(
@@ -205,13 +212,13 @@ export async function grepCommand(options: GrepOptions): Promise<void> {
     );
   }
 
-  if (allResults.length === 0) {
+  if (filteredResults.length === 0) {
     console.log(`No tools found matching "${options.pattern}"`);
     return;
   }
 
   if (options.json) {
-    const jsonOutput = allResults.map((r) => ({
+    const jsonOutput = filteredResults.map((r) => ({
       server: r.server,
       tool: r.tool.name,
       description: r.tool.description,
@@ -219,6 +226,6 @@ export async function grepCommand(options: GrepOptions): Promise<void> {
     }));
     console.log(formatJson(jsonOutput));
   } else {
-    console.log(formatSearchResults(allResults, options.withDescriptions));
+    console.log(formatSearchResults(filteredResults, options.withDescriptions));
   }
 }
