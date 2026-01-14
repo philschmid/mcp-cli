@@ -17,7 +17,7 @@ import {
   loadConfig,
 } from '../config.js';
 import { ErrorCode } from '../errors.js';
-import { formatJson, formatSearchResults } from '../output.js';
+import { formatJson, formatGrepResults } from '../output.js';
 
 export interface GrepOptions {
   pattern: string;
@@ -219,6 +219,6 @@ export async function grepCommand(options: GrepOptions): Promise<void> {
     }));
     console.log(formatJson(jsonOutput));
   } else {
-    console.log(formatSearchResults(allResults, options.withDescriptions));
+    console.log(formatGrepResults(allResults, options.withDescriptions));
   }
 }

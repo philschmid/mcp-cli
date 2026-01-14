@@ -39,3 +39,4 @@ bun-debug.log*
 tmp/
 temp/
 *.tmp
+package-lock.json

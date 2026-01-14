@@ -10,6 +10,12 @@
     },
     "deepwiki": {
       "url": "https://mcp.deepwiki.com/mcp"
+    },
+    "test-server": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\Hamze\\OneDrive\\Documents\\GitHub\\mcp-cli\\test-server.js"
+      ]
     }
   }
 }
