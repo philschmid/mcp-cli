@@ -39,17 +39,4 @@ bun-debug.log*
 tmp/
 temp/
 *.tmp
-
-# Internal documentation (not for PR)
-SENIOR_FEEDBACK_REQUEST_v2.md
-SENIOR_FEEDBACK_RESPONSE.md
-SENIOR_FEEDBACK_v3_IMPLEMENTED.md
-TECHNICAL_REVIEW.md
-TESTING_GUIDE.md
-BENCHMARK_TESTS.md
-BUN_INSTALL.md
-NODEJS_INSTALL.md
-PR_READY.md
-PR_PROOF_FRAMEWORK.md
-test-search.ps1
-test-server.js
+package-lock.json
