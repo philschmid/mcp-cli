@@ -75,10 +75,40 @@ mcp-cli filesystem/read_file '{"path": "./README.md"}'
 ```
 mcp-cli [options]                           List all servers and tools (names only)
 mcp-cli [options] grep <pattern>            Search tools by glob pattern
+mcp-cli [options] search "<query>"          Find tools using natural language
 mcp-cli [options] <server>                  Show server tools and parameters
 mcp-cli [options] <server>/<tool>           Show tool schema (JSON input schema)
 mcp-cli [options] <server>/<tool> <json>    Call tool with arguments
 ```
+
+### Finding Tools
+
+**When you know the exact tool name**, use `grep`:
+```bash
+mcp-cli grep "*file*"
+```
+
+**When vocabulary doesn't match**, use `search`:
+```bash
+# ❌ grep fails (no tool named "*ticket*")
+mcp-cli grep "*ticket*"
+# → No results
+
+# ✅ search succeeds (finds tools with "ticket" in description)
+mcp-cli search "create a support ticket"  
+# → crm/create_case
+
+# More examples
+mcp-cli search "refund an order"          # → payments/reverse_charge
+mcp-cli search "schedule a meeting"       # → calendar/create_event
+```
+
+**Search options**:
+- `--score` - Show relevance scores
+- `--threshold <n>` - Minimum score (0-1, default: 0.3)
+- `--limit <n>` - Max results (default: 10)
+- `--no-synonyms` - Disable synonym expansion
+
 
 > [!TIP]
 > Add `-d` to any command to include descriptions.

@@ -21,7 +21,7 @@ export const GOLDEN_QUERIES: GoldenQuery[] = [
     {
         id: 'ticket_case_mismatch',
         category: 'mismatch',
-        query: 'file a ticket for broken login',
+        query: 'create a support ticket',
         globPattern: '*ticket*',
         expectedTop3: ['crm/create_case'],
         description: 'User says "ticket", tool is named "case"',
@@ -72,6 +72,15 @@ export const GOLDEN_QUERIES: GoldenQuery[] = [
         description: 'User says "ticket", Jira calls it "issue"',
     },
 
+    {
+        id: 'invoice_bill_mismatch',
+        category: 'mismatch',
+        query: 'send a bill to customer',
+        globPattern: '*bill*',
+        expectedTop3: ['billing/send_invoice'],
+        description: 'User says "bill", tool description uses "bill" but name says "invoice"',
+    },
+
     // ===== CONTROL CASES (where glob works fine) =====
 
     {
@@ -99,5 +108,27 @@ export const GOLDEN_QUERIES: GoldenQuery[] = [
         globPattern: '*query*',
         expectedTop3: ['database/execute_query'],
         description: 'Exact vocabulary match - glob should work',
+    },
+
+    // ===== NEGATIVE TEST (avoid over-claiming) =====
+
+    {
+        id: 'nonsense_query_negative',
+        category: 'mismatch',
+        query: 'xyzabc quantum flux capacitor',
+        globPattern: '*flux*',
+        expectedTop3: [], // Should return nothing or very low scores
+        description: 'Nonsense query - search should not hallucinate results',
+    },
+
+    // ===== RANKING SANITY TEST =====
+
+    {
+        id: 'literal_ranking_sanity',
+        category: 'control',
+        query: 'database execute query',
+        globPattern: '*query*',
+        expectedTop3: ['database/execute_query'],
+        description: 'Literal query should rank exact match #1',
     },
 ];

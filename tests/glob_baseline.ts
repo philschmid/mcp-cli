@@ -1,10 +1,15 @@
 /**
  * Glob baseline search - simulates current grep behavior
  * 
- * This is intentionally simple to match the limitation we're trying to prove:
- * - Pattern like *word* matches only if server/tool_name contains word as substring
- * - Case-insensitive matching
- * - Does NOT search descriptions
+ * BASELINE DEFINITION:
+ * This intentionally models grep behavior as simple substring matching on tool ID only.
+ * 
+ * - Pattern: *word* → extracts "word"
+ * - Matches: case-insensitive substring match on "server/tool_name"
+ * - Does NOT search: tool descriptions
+ * - Real glob has edge cases, but this models the common use case
+ * 
+ * This baseline proves where current grep limitations exist (vocabulary mismatch).
  */
 
 import type { TestTool } from './fixtures/tools.js';

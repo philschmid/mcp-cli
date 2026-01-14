@@ -55,6 +55,18 @@ export const TEST_CORPUS: TestTool[] = [
         description: 'Process a credit card payment',
     },
 
+    // Billing - vocabulary mismatch: "invoice" vs "bill"
+    {
+        server: 'billing',
+        name: 'create_invoice',
+        description: 'Bill a customer for services rendered',
+    },
+    {
+        server: 'billing',
+        name: 'send_invoice',
+        description: 'Send bill to customer email',
+    },
+
     // Calendar - vocabulary mismatch: "meeting" vs "event"
     {
         server: 'calendar',

@@ -142,6 +142,34 @@ describe('Search vs Glob Baseline Comparison', () => {
         expect(searchToolIds.slice(0, 3)).toContain('jira/create_issue');
     });
 
+    test('invoice/bill mismatch - business vocabulary', async () => {
+        const query = GOLDEN_QUERIES.find(q => q.id === 'invoice_bill_mismatch')!;
+
+        const globResults = globSearch(TEST_CORPUS, query.globPattern);
+        const searchResults = await hybridSearch(query.query, toSearchFormat(TEST_CORPUS), 0.1, 10, true);
+        const searchToolIds = extractToolIds(searchResults);
+
+        console.log(`\nQuery: "${query.query}"`);
+        console.log(`Glob: ${globResults.length > 0 ? globResults.join(', ') : 'NONE (❌ MISS)'}`);
+        console.log(`Search: ${searchToolIds.slice(0, 3).join(', ')}`);
+
+        expect(globResults).toContain('billing/send_invoice');
+        expect(searchToolIds[0]).toBe('billing/send_invoice');
+    });
+
+    test('NEGATIVE: nonsense query should return nothing meaningful', async () => {
+        const query = GOLDEN_QUERIES.find(q => q.id === 'nonsense_query_negative')!;
+
+        const searchResults = await hybridSearch(query.query, toSearchFormat(TEST_CORPUS), 0.3, 10, true);
+        const searchToolIds = extractToolIds(searchResults);
+
+        console.log(`\nNEGATIVE Query: "${query.query}"`);
+        console.log(`Search: ${searchToolIds.length > 0 ? searchToolIds.join(', ') : 'NONE (✓ CORRECT)'}`);
+
+        // Nonsense query should return no results (or very few with low scores)
+        expect(searchToolIds.length).toBeLessThanOrEqual(2); // Allow max 2 spurious matches
+    });
+
     // ===== CONTROL TESTS (glob should work) =====
 
     test('CONTROL: read_file exact match - both should succeed', async () => {
@@ -188,6 +216,20 @@ describe('Search vs Glob Baseline Comparison', () => {
 
         expect(globResults).toContain('database/execute_query');
         expect(searchToolIds).toContain('database/execute_query');
+    });
+
+    test('RANKING SANITY: literal query ranks exact match #1', async () => {
+        const query = GOLDEN_QUERIES.find(q => q.id === 'literal_ranking_sanity')!;
+
+        const searchResults = await hybridSearch(query.query, toSearchFormat(TEST_CORPUS), 0.1, 10, true);
+        const searchToolIds = extractToolIds(searchResults);
+
+        console.log(`\nRANKING Query: "${query.query}"`);
+        console.log(`Top result: ${searchToolIds[0]}`);
+        console.log(`Top 3: ${searchToolIds.slice(0, 3).join(', ')}`);
+
+        // Literal query should rank the exact match as #1 (not just in top 3)
+        expect(searchToolIds[0]).toBe('database/execute_query');
     });
 });
 
