@@ -60,9 +60,9 @@ export function formatServerList(
 }
 
 /**
- * Format search results
+ * Format search results (used by grep command)
  */
-export function formatSearchResults(
+export function formatGrepResults(
   results: Array<{ server: string; tool: ToolInfo }>,
   withDescriptions: boolean,
 ): string {
@@ -75,6 +75,38 @@ export function formatSearchResults(
     } else {
       lines.push(path);
     }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Format search results with scores (used by search command)
+ */
+export function formatSearchResults(
+  results: Array<{ server: string; tool: ToolInfo; score: number }>,
+  withDescriptions: boolean,
+  withScores = false,
+): string {
+  const lines: string[] = [];
+
+  for (const result of results) {
+    const path = `${color(result.server, colors.cyan)}/${color(result.tool.name, colors.green)}`;
+
+    let line = path;
+
+    // Add score if requested
+    if (withScores) {
+      const scoreStr = color(`[${(result.score * 100).toFixed(0)}%]`, colors.dim);
+      line = `${scoreStr} ${line}`;
+    }
+
+    // Add description if requested
+    if (withDescriptions && result.tool.description) {
+      line += ` - ${color(result.tool.description, colors.dim)}`;
+    }
+
+    lines.push(line);
   }
 
   return lines.join('\n');

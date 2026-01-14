@@ -39,3 +39,12 @@ bun-debug.log*
 tmp/
 temp/
 *.tmp
+SENIOR_FEEDBACK_REQUEST_v2.md
+BENCHMARK_TESTS.md
+BUN_INSTALL.md
+NODEJS_INSTALL.md
+SENIOR_FEEDBACK_RESPONSE.md
+TECHNICAL_REVIEW.md
+TESTING_GUIDE.md
+test-search.ps1
+test-server.js

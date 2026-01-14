@@ -14,6 +14,7 @@ import { callCommand } from './commands/call.js';
 import { grepCommand } from './commands/grep.js';
 import { infoCommand } from './commands/info.js';
 import { listCommand } from './commands/list.js';
+import { searchCommand } from './commands/search.js';
 import {
   DEFAULT_CONCURRENCY,
   DEFAULT_MAX_RETRIES,
@@ -29,13 +30,18 @@ import {
 import { VERSION } from './version.js';
 
 interface ParsedArgs {
-  command: 'list' | 'grep' | 'info' | 'call' | 'help' | 'version';
+  command: 'list' | 'grep' | 'info' | 'call' | 'search' | 'help' | 'version';
   target?: string;
   pattern?: string;
+  query?: string;        // For search command
   args?: string;
   json: boolean;
   withDescriptions: boolean;
   configPath?: string;
+  threshold?: number;    // For search command
+  limit?: number;        // For search command
+  showScores?: boolean;  // For search command
+  noSynonyms?: boolean;  // For search command
 }
 
 /**
@@ -79,6 +85,23 @@ function parseArgs(args: string[]): ParsedArgs {
         result.configPath = args[++i];
         break;
 
+      case '--threshold':
+        result.threshold = Number.parseFloat(args[++i]);
+        break;
+
+      case '--limit':
+        result.limit = Number.parseInt(args[++i]);
+        break;
+
+      case '--score':
+      case '--scores':
+        result.showScores = true;
+        break;
+
+      case '--no-synonyms':
+        result.noSynonyms = true;
+        break;
+
       default:
         // Single '-' is allowed (stdin indicator), but other dash-prefixed args are options
         if (arg.startsWith('-') && arg !== '-') {
@@ -97,6 +120,13 @@ function parseArgs(args: string[]): ParsedArgs {
     result.pattern = positional[1];
     if (!result.pattern) {
       console.error(formatCliError(missingArgumentError('grep', 'pattern')));
+      process.exit(ErrorCode.CLIENT_ERROR);
+    }
+  } else if (positional[0] === 'search') {
+    result.command = 'search';
+    result.query = positional.slice(1).join(' ');
+    if (!result.query) {
+      console.error(formatCliError(missingArgumentError('search', 'query')));
       process.exit(ErrorCode.CLIENT_ERROR);
     }
   } else if (positional[0].includes('/')) {
@@ -129,9 +159,10 @@ mcp-cli v${VERSION} - A lightweight CLI for MCP servers
 Usage:
   mcp-cli [options]                           List all servers and tools
   mcp-cli [options] grep <pattern>            Search tools by glob pattern
+  mcp-cli [options] search <query>            Semantic search for tools
   mcp-cli [options] <server>                  Show server tools and parameters
   mcp-cli [options] <server>/<tool>           Show tool schema and description
-  mcp-cli [options] <server>/<tool> <json>    Call tool with arguments
+  mcp-cli [options> <server>/<tool> <json>    Call tool with arguments
 
 Options:
   -h, --help               Show this help message
@@ -139,6 +170,10 @@ Options:
   -j, --json               Output as JSON (for scripting)
   -d, --with-descriptions  Include tool descriptions
   -c, --config <path>      Path to mcp_servers.json config file
+  --threshold <number>     Minimum relevance score for search (0-1, default: 0.3)
+  --limit <number>         Maximum search results (default: 10)
+  --score                  Show relevance scores in search results
+  --no-synonyms            Disable synonym expansion in search
 
 Output:
   stdout                   Tool results and data (default: text, --json for JSON)
@@ -156,7 +191,9 @@ Environment Variables:
 Examples:
   mcp-cli                                    # List all servers
   mcp-cli -d                                 # List with descriptions
-  mcp-cli grep "*file*"                      # Search for file tools
+  mcp-cli grep "*file*"                      # Search for file tools (glob pattern)
+  mcp-cli search "authenticate user"         # Search tools semantically
+  mcp-cli search "read file" --score         # Show relevance scores
   mcp-cli filesystem                         # Show server tools
   mcp-cli filesystem/read_file               # Show tool schema
   mcp-cli filesystem/read_file '{"path":"./README.md"}'  # Call tool
@@ -218,6 +255,19 @@ async function main(): Promise<void> {
         args: args.args,
         json: args.json,
         configPath: args.configPath,
+      });
+      break;
+
+    case 'search':
+      await searchCommand({
+        query: args.query ?? '',
+        withDescriptions: args.withDescriptions,
+        json: args.json,
+        configPath: args.configPath,
+        threshold: args.threshold,
+        limit: args.limit,
+        showScores: args.showScores,
+        noSynonyms: args.noSynonyms,
       });
       break;
   }
