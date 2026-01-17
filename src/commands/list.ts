@@ -11,6 +11,10 @@ import {
   safeClose,
 } from '../client.js';
 import {
+  getCachedToolList,
+  setCachedToolList,
+} from '../cache.js';
+import {
   type McpServersConfig,
   getServerConfig,
   listServerNames,
@@ -61,23 +65,40 @@ async function processWithConcurrency<T, R>(
 }
 
 /**
- * Fetch tools from a single server
+ * Fetch tools from a single server (with caching)
  */
 async function fetchServerTools(
   serverName: string,
   config: McpServersConfig,
 ): Promise<ServerWithTools> {
   try {
-    const serverConfig = getServerConfig(config, serverName);
-    const { client, close } = await connectToServer(serverName, serverConfig);
+    let tools: ToolInfo[];
 
-    try {
-      const tools = await listTools(client);
-      debug(`${serverName}: loaded ${tools.length} tools`);
-      return { name: serverName, tools };
-    } finally {
-      await safeClose(close);
+    // Try to get from cache first
+    const cachedTools = await getCachedToolList(serverName);
+
+    if (cachedTools) {
+      debug(`${serverName}: using cached tool list`);
+      tools = cachedTools;
+    } else {
+      // Cache miss - connect to server
+      debug(`${serverName}: connecting to server (cache miss)`);
+      const serverConfig = getServerConfig(config, serverName);
+      const { client, close } = await connectToServer(serverName, serverConfig);
+
+      try {
+        tools = await listTools(client);
+
+        // Save to cache for next time
+        await setCachedToolList(serverName, tools);
+
+        debug(`${serverName}: loaded ${tools.length} tools`);
+      } finally {
+        await safeClose(close);
+      }
     }
+
+    return { name: serverName, tools };
   } catch (error) {
     const errorMsg = (error as Error).message;
     debug(`${serverName}: connection failed - ${errorMsg}`);

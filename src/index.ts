@@ -10,6 +10,7 @@
  *   mcp-cli <server>/<tool> <json>  Call tool with arguments
  */
 
+import { cacheCommand } from './commands/cache.js';
 import { callCommand } from './commands/call.js';
 import { grepCommand } from './commands/grep.js';
 import { infoCommand } from './commands/info.js';
@@ -29,13 +30,15 @@ import {
 import { VERSION } from './version.js';
 
 interface ParsedArgs {
-  command: 'list' | 'grep' | 'info' | 'call' | 'help' | 'version';
+  command: 'list' | 'grep' | 'info' | 'call' | 'help' | 'version' | 'cache';
   target?: string;
   pattern?: string;
   args?: string;
   json: boolean;
   withDescriptions: boolean;
   configPath?: string;
+  cacheAction?: 'clear' | 'stats';
+  cacheServer?: string;
 }
 
 /**
@@ -99,6 +102,17 @@ function parseArgs(args: string[]): ParsedArgs {
       console.error(formatCliError(missingArgumentError('grep', 'pattern')));
       process.exit(ErrorCode.CLIENT_ERROR);
     }
+  } else if (positional[0] === 'cache') {
+    result.command = 'cache';
+    const action = positional[1];
+    if (!action || (action !== 'clear' && action !== 'stats')) {
+      console.error(
+        formatCliError(missingArgumentError('cache', 'action (clear|stats)')),
+      );
+      process.exit(ErrorCode.CLIENT_ERROR);
+    }
+    result.cacheAction = action as 'clear' | 'stats';
+    result.cacheServer = positional[2]; // Optional server name for clear
   } else if (positional[0].includes('/')) {
     // server/tool format
     result.target = positional[0];
@@ -129,6 +143,7 @@ mcp-cli v${VERSION} - A lightweight CLI for MCP servers
 Usage:
   mcp-cli [options]                           List all servers and tools
   mcp-cli [options] grep <pattern>            Search tools by glob pattern
+  mcp-cli [options] cache <action> [server]   Manage tool list cache
   mcp-cli [options] <server>                  Show server tools and parameters
   mcp-cli [options] <server>/<tool>           Show tool schema and description
   mcp-cli [options] <server>/<tool> <json>    Call tool with arguments
@@ -139,6 +154,10 @@ Options:
   -j, --json               Output as JSON (for scripting)
   -d, --with-descriptions  Include tool descriptions
   -c, --config <path>      Path to mcp_servers.json config file
+
+Cache Actions:
+  stats                    Show cache statistics
+  clear [server]           Clear cache for all servers or specific server
 
 Output:
   stdout                   Tool results and data (default: text, --json for JSON)
@@ -152,11 +171,16 @@ Environment Variables:
   MCP_MAX_RETRIES          Max retry attempts for transient errors (default: ${DEFAULT_MAX_RETRIES})
   MCP_RETRY_DELAY          Base retry delay in milliseconds (default: ${DEFAULT_RETRY_DELAY_MS})
   MCP_STRICT_ENV           Set to "false" to warn on missing env vars (default: true)
+  MCP_CACHE_TTL            Cache TTL in seconds (default: 3600)
+  MCP_NO_CACHE             Set to "true" to disable caching
 
 Examples:
   mcp-cli                                    # List all servers
   mcp-cli -d                                 # List with descriptions
   mcp-cli grep "*file*"                      # Search for file tools
+  mcp-cli cache stats                        # Show cache statistics
+  mcp-cli cache clear                        # Clear all caches
+  mcp-cli cache clear github                 # Clear cache for github server
   mcp-cli filesystem                         # Show server tools
   mcp-cli filesystem/read_file               # Show tool schema
   mcp-cli filesystem/read_file '{"path":"./README.md"}'  # Call tool
@@ -199,6 +223,14 @@ async function main(): Promise<void> {
         pattern: args.pattern ?? '',
         withDescriptions: args.withDescriptions,
         json: args.json,
+        configPath: args.configPath,
+      });
+      break;
+
+    case 'cache':
+      await cacheCommand({
+        action: args.cacheAction ?? 'stats',
+        server: args.cacheServer,
         configPath: args.configPath,
       });
       break;

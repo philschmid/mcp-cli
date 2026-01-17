@@ -11,6 +11,10 @@ import {
   safeClose,
 } from '../client.js';
 import {
+  getCachedToolList,
+  setCachedToolList,
+} from '../cache.js';
+import {
   type McpServersConfig,
   getServerConfig,
   listServerNames,
@@ -112,7 +116,7 @@ async function processWithConcurrency<T, R>(
 }
 
 /**
- * Search tools in a single server
+ * Search tools in a single server (with caching)
  */
 async function searchServerTools(
   serverName: string,
@@ -120,31 +124,48 @@ async function searchServerTools(
   pattern: RegExp,
 ): Promise<ServerSearchResult> {
   try {
-    const serverConfig = getServerConfig(config, serverName);
-    const { client, close } = await connectToServer(serverName, serverConfig);
+    let tools: ToolInfo[];
 
-    try {
-      const tools = await listTools(client);
-      const results: SearchResult[] = [];
+    // Try to get from cache first
+    const cachedTools = await getCachedToolList(serverName);
 
-      for (const tool of tools) {
-        // Match against tool name, server/tool path, or description
-        const fullPath = `${serverName}/${tool.name}`;
-        const matchesName = pattern.test(tool.name);
-        const matchesPath = pattern.test(fullPath);
-        const matchesDescription =
-          tool.description && pattern.test(tool.description);
+    if (cachedTools) {
+      debug(`${serverName}: using cached tool list`);
+      tools = cachedTools;
+    } else {
+      // Cache miss - connect to server
+      debug(`${serverName}: connecting to server (cache miss)`);
+      const serverConfig = getServerConfig(config, serverName);
+      const { client, close } = await connectToServer(serverName, serverConfig);
 
-        if (matchesName || matchesPath || matchesDescription) {
-          results.push({ server: serverName, tool });
-        }
+      try {
+        tools = await listTools(client);
+
+        // Save to cache for next time
+        await setCachedToolList(serverName, tools);
+      } finally {
+        await safeClose(close);
       }
-
-      debug(`${serverName}: found ${results.length} matches`);
-      return { serverName, results };
-    } finally {
-      await safeClose(close);
     }
+
+    // Search through tools
+    const results: SearchResult[] = [];
+
+    for (const tool of tools) {
+      // Match against tool name, server/tool path, or description
+      const fullPath = `${serverName}/${tool.name}`;
+      const matchesName = pattern.test(tool.name);
+      const matchesPath = pattern.test(fullPath);
+      const matchesDescription =
+        tool.description && pattern.test(tool.description);
+
+      if (matchesName || matchesPath || matchesDescription) {
+        results.push({ server: serverName, tool });
+      }
+    }
+
+    debug(`${serverName}: found ${results.length} matches`);
+    return { serverName, results };
   } catch (error) {
     const errorMsg = (error as Error).message;
     debug(`${serverName}: connection failed - ${errorMsg}`);

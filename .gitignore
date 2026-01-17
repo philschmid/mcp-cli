@@ -39,3 +39,6 @@ bun-debug.log*
 tmp/
 temp/
 *.tmp
+
+# Config files
+mcp_config.json
