@@ -62,15 +62,19 @@ async function processWithConcurrency<T, R>(
 
 /**
  * Fetch tools from a single server (uses daemon if enabled)
+ * When listing multiple servers, interactive OAuth is disabled to prevent chaos
  */
 async function fetchServerTools(
   serverName: string,
   config: McpServersConfig,
+  allowInteractiveAuth = true,
 ): Promise<ServerWithTools> {
   let connection: McpConnection | null = null;
   try {
     const serverConfig = getServerConfig(config, serverName);
-    connection = await getConnection(serverName, serverConfig);
+    connection = await getConnection(serverName, serverConfig, {
+      allowInteractiveAuth,
+    });
 
     const tools = await connection.listTools();
     const instructions = await connection.getInstructions();
@@ -119,9 +123,11 @@ export async function listCommand(options: ListOptions): Promise<void> {
   );
 
   // Process servers in parallel with concurrency limit
+  // Disable interactive OAuth when listing multiple servers to prevent chaos
+  const allowInteractiveAuth = serverNames.length === 1;
   const servers = await processWithConcurrency(
     serverNames,
-    (name) => fetchServerTools(name, config),
+    (name) => fetchServerTools(name, config, allowInteractiveAuth),
     concurrencyLimit,
   );
 

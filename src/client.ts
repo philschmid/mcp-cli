@@ -27,7 +27,7 @@ import {
   getDaemonConnection,
 } from './daemon-client.js';
 import { formatCliError, oauthFlowError } from './errors.js';
-import { McpCliOAuthProvider, waitForOAuthCallback } from './oauth.js';
+import { McpCliOAuthProvider } from './oauth.js';
 import { VERSION } from './version.js';
 
 // Re-export config utilities for convenience
@@ -50,6 +50,27 @@ export interface McpConnection {
   getInstructions: () => Promise<string | undefined>;
   close: () => Promise<void>;
   isDaemon: boolean;
+}
+
+export interface ConnectOptions {
+  /**
+   * Allow interactive OAuth flow (browser opens, user authorizes)
+   * When false, throws an error if authentication is required
+   * Default: true
+   */
+  allowInteractiveAuth?: boolean;
+}
+
+/**
+ * Error thrown when authentication is required but interactive auth is disabled
+ */
+export class AuthRequiredError extends Error {
+  constructor(serverName: string) {
+    super(
+      `Server "${serverName}" requires authentication. Run 'mcp-cli ${serverName}' to authenticate.`,
+    );
+    this.name = 'AuthRequiredError';
+  }
 }
 
 export interface ServerInfo {
@@ -225,7 +246,9 @@ export async function safeClose(close: () => Promise<void>): Promise<void> {
 export async function connectToServer(
   serverName: string,
   config: ServerConfig,
+  options: ConnectOptions = {},
 ): Promise<ConnectedClient> {
+  const { allowInteractiveAuth = true } = options;
   // Collect stderr for better error messages
   const stderrChunks: string[] = [];
 
@@ -247,6 +270,9 @@ export async function connectToServer(
       const result = createHttpTransport(serverName, config);
       transport = result.transport;
       authProvider = result.authProvider;
+
+      // Configure whether interactive auth is allowed
+      authProvider.setAllowInteractiveAuth(allowInteractiveAuth);
     } else {
       transport = createStdioTransport(config);
 
@@ -270,6 +296,12 @@ export async function connectToServer(
       if (isOAuthNeeded(error as Error) && authProvider) {
         debug(`OAuth authorization required for ${serverName}`);
 
+        // If interactive auth was blocked by the provider, throw a clear error
+        if (authProvider.interactiveAuthBlocked) {
+          authProvider.cleanupCallbackServer();
+          throw new AuthRequiredError(serverName);
+        }
+
         // For authorization_code flow, wait for callback
         const oauthConfig = (config as HttpServerConfig).oauth;
         if (
@@ -277,10 +309,10 @@ export async function connectToServer(
           oauthConfig.grantType === 'authorization_code'
         ) {
           try {
-            const port = authProvider.getCallbackPort();
             console.error('Waiting for OAuth authorization...');
 
-            const { code } = await waitForOAuthCallback(port);
+            // Wait for the callback server that was started by redirectToAuthorization
+            const { code } = await authProvider.waitForCallback();
             debug('Authorization code received, completing OAuth flow');
 
             // Complete the OAuth flow with the authorization code
@@ -488,6 +520,7 @@ export async function callTool(
 export async function getConnection(
   serverName: string,
   config: ServerConfig,
+  options: ConnectOptions = {},
 ): Promise<McpConnection> {
   // Clean up any orphaned daemons on first call
   await cleanupOrphanedDaemons();
@@ -535,7 +568,7 @@ export async function getConnection(
 
   // Fall back to direct connection
   debug(`Using direct connection for ${serverName}`);
-  const { client, close } = await connectToServer(serverName, config);
+  const { client, close } = await connectToServer(serverName, config, options);
 
   return {
     async listTools(): Promise<ToolInfo[]> {

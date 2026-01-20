@@ -192,16 +192,27 @@ export interface OAuthCallbackResult {
 }
 
 /**
- * Wait for OAuth callback on local server
- * Returns the authorization code from the callback
+ * Callback server state for managing the OAuth callback listener
  */
-export function waitForOAuthCallback(
-  port: number = DEFAULT_CALLBACK_PORT,
-  timeoutMs = 300000, // 5 minutes default
-): Promise<OAuthCallbackResult> {
-  return new Promise((resolve, reject) => {
-    let server: Server | undefined;
+interface CallbackServerState {
+  server: Server;
+  promise: Promise<OAuthCallbackResult>;
+  cleanup: () => void;
+}
+
+/**
+ * Start an OAuth callback server that listens for the authorization code
+ * Returns immediately with a promise that resolves when the callback is received
+ */
+function startCallbackServer(
+  port: number,
+  timeoutMs = 300000,
+): Promise<CallbackServerState> {
+  return new Promise((resolveStart, rejectStart) => {
+    let callbackResolve: (result: OAuthCallbackResult) => void;
+    let callbackReject: (error: Error) => void;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let server: Server | undefined;
 
     const cleanup = () => {
       if (timeoutId) {
@@ -214,9 +225,16 @@ export function waitForOAuthCallback(
       }
     };
 
+    const callbackPromise = new Promise<OAuthCallbackResult>(
+      (resolve, reject) => {
+        callbackResolve = resolve;
+        callbackReject = reject;
+      },
+    );
+
     timeoutId = setTimeout(() => {
       cleanup();
-      reject(
+      callbackReject(
         new Error('OAuth callback timeout - no authorization code received'),
       );
     }, timeoutMs);
@@ -253,7 +271,7 @@ export function waitForOAuthCallback(
         `);
 
         cleanup();
-        resolve({ code });
+        callbackResolve({ code });
       } else if (error) {
         const message = errorDescription || error;
         debug(`OAuth error: ${message}`);
@@ -271,7 +289,7 @@ export function waitForOAuthCallback(
         `);
 
         cleanup();
-        reject(new Error(`OAuth authorization failed: ${message}`));
+        callbackReject(new Error(`OAuth authorization failed: ${message}`));
       } else {
         res.writeHead(400, { 'Content-Type': 'text/plain' });
         res.end('Bad request: missing authorization code');
@@ -280,7 +298,7 @@ export function waitForOAuthCallback(
 
     server.on('error', (error) => {
       cleanup();
-      reject(
+      rejectStart(
         new Error(`Failed to start OAuth callback server: ${error.message}`),
       );
     });
@@ -289,8 +307,26 @@ export function waitForOAuthCallback(
       debug(
         `OAuth callback server listening on http://localhost:${port}/callback`,
       );
+      resolveStart({
+        server: server!,
+        promise: callbackPromise,
+        cleanup,
+      });
     });
   });
+}
+
+/**
+ * Wait for OAuth callback on local server
+ * Returns the authorization code from the callback
+ * @deprecated Use McpCliOAuthProvider.waitForCallback() instead
+ */
+export async function waitForOAuthCallback(
+  port: number = DEFAULT_CALLBACK_PORT,
+  timeoutMs = 300000,
+): Promise<OAuthCallbackResult> {
+  const state = await startCallbackServer(port, timeoutMs);
+  return state.promise;
 }
 
 /**
@@ -304,6 +340,13 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
   private readonly oauthConfig: OAuthConfig;
   private readonly serverUrl: string;
   private readonly paths: { tokens: string; client: string; verifier: string };
+
+  // Callback server state - started before browser opens
+  private callbackServerState: CallbackServerState | null = null;
+  private callbackServerStarting: Promise<void> | null = null;
+
+  // Whether interactive auth (browser + callback) is allowed
+  private _allowInteractiveAuth = true;
 
   constructor(serverName: string, serverUrl: string, oauthConfig: OAuthConfig) {
     this.serverName = serverName;
@@ -400,17 +443,97 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
   }
 
   /**
+   * Set whether interactive auth is allowed
+   * When disabled, redirectToAuthorization will not open browser or start server
+   */
+  setAllowInteractiveAuth(allow: boolean): void {
+    this._allowInteractiveAuth = allow;
+  }
+
+  /**
+   * Check if interactive auth was blocked
+   */
+  get interactiveAuthBlocked(): boolean {
+    return !this._allowInteractiveAuth;
+  }
+
+  /**
    * Redirect to authorization URL
-   * Opens the URL in the default browser
+   * Starts the callback server FIRST, then opens the browser
+   * This prevents the race condition where the browser redirects before the server is ready
    */
   redirectToAuthorization(authorizationUrl: URL): void {
-    console.error('Opening browser for authorization...');
-    console.error(
-      `If the browser doesn't open, visit: ${authorizationUrl.toString()}`,
-    );
-    openBrowser(authorizationUrl.toString()).catch(() => {
-      // Error already logged in openBrowser
-    });
+    // If interactive auth is disabled, don't start server or open browser
+    if (!this._allowInteractiveAuth) {
+      debug(
+        `Interactive auth disabled for ${this.serverName}, skipping browser redirect`,
+      );
+      return;
+    }
+
+    const port = this.getCallbackPort();
+
+    // Start the callback server BEFORE opening the browser
+    // This is critical to avoid race conditions
+    // Store the promise so waitForCallback can properly await it
+    this.callbackServerStarting = startCallbackServer(port)
+      .then((state) => {
+        this.callbackServerState = state;
+        this.callbackServerStarting = null;
+        debug(`Callback server ready for ${this.serverName}`);
+
+        // Now open the browser
+        console.error(`\nAuthorizing ${this.serverName}...`);
+        console.error(
+          `If the browser doesn't open, visit: ${authorizationUrl.toString()}`,
+        );
+        openBrowser(authorizationUrl.toString()).catch(() => {
+          // Error already logged in openBrowser
+        });
+      })
+      .catch((error) => {
+        this.callbackServerStarting = null;
+        console.error(`Failed to start callback server: ${error.message}`);
+        console.error(
+          `Please manually visit: ${authorizationUrl.toString()}`,
+        );
+        throw error;
+      });
+  }
+
+  /**
+   * Wait for the OAuth callback to complete
+   * Returns the authorization code
+   */
+  async waitForCallback(): Promise<OAuthCallbackResult> {
+    // Wait for server to finish starting if in progress
+    if (this.callbackServerStarting) {
+      await this.callbackServerStarting;
+    }
+
+    if (!this.callbackServerState) {
+      // Fallback: start server now if not already started
+      const port = this.getCallbackPort();
+      this.callbackServerState = await startCallbackServer(port);
+    }
+    return this.callbackServerState.promise;
+  }
+
+  /**
+   * Check if this provider has a pending callback server
+   */
+  hasPendingCallback(): boolean {
+    return this.callbackServerState !== null;
+  }
+
+  /**
+   * Clean up the callback server if running
+   */
+  cleanupCallbackServer(): void {
+    if (this.callbackServerState) {
+      this.callbackServerState.cleanup();
+      this.callbackServerState = null;
+    }
   }
 
   /**
