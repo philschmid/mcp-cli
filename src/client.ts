@@ -2,6 +2,7 @@
  * MCP Client - Connection management for MCP servers
  */
 
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -25,6 +26,8 @@ import {
   cleanupOrphanedDaemons,
   getDaemonConnection,
 } from './daemon-client.js';
+import { formatCliError, oauthFlowError } from './errors.js';
+import { McpCliOAuthProvider, waitForOAuthCallback } from './oauth.js';
 import { VERSION } from './version.js';
 
 // Re-export config utilities for convenience
@@ -217,6 +220,7 @@ export async function safeClose(close: () => Promise<void>): Promise<void> {
 /**
  * Connect to an MCP server with retry logic
  * Captures stderr from stdio servers to include in error messages
+ * Handles OAuth flow for HTTP servers with authentication
  */
 export async function connectToServer(
   serverName: string,
@@ -237,9 +241,12 @@ export async function connectToServer(
     );
 
     let transport: StdioClientTransport | StreamableHTTPClientTransport;
+    let authProvider: McpCliOAuthProvider | undefined;
 
     if (isHttpServer(config)) {
-      transport = createHttpTransport(config);
+      const result = createHttpTransport(serverName, config);
+      transport = result.transport;
+      authProvider = result.authProvider;
     } else {
       transport = createStdioTransport(config);
 
@@ -259,13 +266,69 @@ export async function connectToServer(
     try {
       await client.connect(transport);
     } catch (error) {
-      // Enhance error with captured stderr
-      const stderrOutput = stderrChunks.join('').trim();
-      if (stderrOutput) {
-        const err = error as Error;
-        err.message = `${err.message}\n\nServer stderr:\n${stderrOutput}`;
+      // Handle OAuth authorization required
+      if (isOAuthNeeded(error as Error) && authProvider) {
+        debug(`OAuth authorization required for ${serverName}`);
+
+        // For authorization_code flow, wait for callback
+        const oauthConfig = (config as HttpServerConfig).oauth;
+        if (
+          !oauthConfig?.grantType ||
+          oauthConfig.grantType === 'authorization_code'
+        ) {
+          try {
+            const port = authProvider.getCallbackPort();
+            console.error('Waiting for OAuth authorization...');
+
+            const { code } = await waitForOAuthCallback(port);
+            debug('Authorization code received, completing OAuth flow');
+
+            // Complete the OAuth flow with the authorization code
+            await (transport as StreamableHTTPClientTransport).finishAuth(code);
+
+            // Create new client and transport for authenticated connection
+            // (original transport is in started state and can't be reused)
+            debug('Creating new connection with authenticated tokens');
+            const newClient = new Client(
+              { name: 'mcp-cli', version: VERSION },
+              { capabilities: {} },
+            );
+            const newResult = createHttpTransport(serverName, config as HttpServerConfig);
+            await newClient.connect(newResult.transport);
+
+            return {
+              client: newClient,
+              close: async () => {
+                await newClient.close();
+              },
+            };
+          } catch (oauthError) {
+            throw new Error(
+              formatCliError(
+                oauthFlowError(serverName, (oauthError as Error).message),
+              ),
+            );
+          }
+        } else {
+          // client_credentials should not need interactive flow
+          throw new Error(
+            formatCliError(
+              oauthFlowError(
+                serverName,
+                'client_credentials authentication failed - check clientId and clientSecret',
+              ),
+            ),
+          );
+        }
+      } else {
+        // Enhance error with captured stderr
+        const stderrOutput = stderrChunks.join('').trim();
+        if (stderrOutput) {
+          const err = error as Error;
+          err.message = `${err.message}\n\nServer stderr:\n${stderrOutput}`;
+        }
+        throw error;
       }
-      throw error;
     }
 
     // For successful connections, forward stderr to console
@@ -289,17 +352,52 @@ export async function connectToServer(
 
 /**
  * Create HTTP transport for remote servers
+ * Always creates an auth provider to handle OAuth flows (server-initiated or explicit)
  */
 function createHttpTransport(
+  serverName: string,
   config: HttpServerConfig,
-): StreamableHTTPClientTransport {
+): {
+  transport: StreamableHTTPClientTransport;
+  authProvider: McpCliOAuthProvider;
+} {
   const url = new URL(config.url);
 
-  return new StreamableHTTPClientTransport(url, {
+  // Always create OAuth provider for HTTP servers to handle server-initiated OAuth
+  // If explicit oauth config exists, use it; otherwise use defaults
+  const oauthConfig = config.oauth || {};
+  const authProvider = new McpCliOAuthProvider(
+    serverName,
+    config.url,
+    oauthConfig,
+  );
+  debug(
+    `OAuth provider created for ${serverName} (${oauthConfig.grantType || 'authorization_code'})`,
+  );
+
+  const transport = new StreamableHTTPClientTransport(url, {
+    authProvider,
     requestInit: {
       headers: config.headers,
     },
   });
+
+  return { transport, authProvider };
+}
+
+/**
+ * Check if an error indicates OAuth authorization is needed
+ */
+function isOAuthNeeded(error: Error): boolean {
+  // Check for UnauthorizedError from SDK
+  if (error instanceof UnauthorizedError) {
+    return true;
+  }
+  // Check for invalid_token error in message (common OAuth error response)
+  if (error.message.includes('invalid_token')) {
+    return true;
+  }
+  return false;
 }
 
 /**
