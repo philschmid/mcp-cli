@@ -392,6 +392,20 @@ Config File:
     2. ./mcp_servers.json (current directory)
     3. ~/.mcp_servers.json
     4. ~/.config/mcp/mcp_servers.json
+
+OAuth Authentication:
+  For HTTP servers that require OAuth, add "oauth": true to the config:
+    {
+      "mcpServers": {
+        "my-server": {
+          "url": "https://example.com/mcp",
+          "oauth": true
+        }
+      }
+    }
+  
+  On first connection, your browser will open for authorization.
+  Tokens are cached in ~/.config/mcp/oauth_tokens.json
 `);
 }
 

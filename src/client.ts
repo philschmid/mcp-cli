@@ -2,10 +2,17 @@
  * MCP Client - Connection management for MCP servers
  */
 
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import { oauthCallbackServer } from './auth/callback-server.js';
+import {
+  CliOAuthProvider,
+  ensureCallbackServerRunning,
+  stopCallbackServer,
+} from './auth/oauth-provider.js';
 import {
   type HttpServerConfig,
   type ServerConfig,
@@ -217,6 +224,7 @@ export async function safeClose(close: () => Promise<void>): Promise<void> {
 /**
  * Connect to an MCP server with retry logic
  * Captures stderr from stdio servers to include in error messages
+ * Supports OAuth authentication for HTTP servers
  */
 export async function connectToServer(
   serverName: string,
@@ -226,6 +234,12 @@ export async function connectToServer(
   const stderrChunks: string[] = [];
 
   return withRetry(async () => {
+    // For HTTP servers with OAuth, we may need to retry after auth
+    if (isHttpServer(config)) {
+      return await connectHttpServer(serverName, config);
+    }
+
+    // For stdio servers, standard connection
     const client = new Client(
       {
         name: 'mcp-cli',
@@ -236,24 +250,18 @@ export async function connectToServer(
       },
     );
 
-    let transport: StdioClientTransport | StreamableHTTPClientTransport;
+    const transport = createStdioTransport(config);
 
-    if (isHttpServer(config)) {
-      transport = createHttpTransport(config);
-    } else {
-      transport = createStdioTransport(config);
-
-      // Capture stderr for debugging - attach BEFORE connect
-      // Always stream stderr immediately so auth prompts are visible
-      const stderrStream = transport.stderr;
-      if (stderrStream) {
-        stderrStream.on('data', (chunk: Buffer) => {
-          const text = chunk.toString();
-          stderrChunks.push(text);
-          // Always stream stderr immediately so users can see auth prompts
-          process.stderr.write(`[${serverName}] ${text}`);
-        });
-      }
+    // Capture stderr for debugging - attach BEFORE connect
+    // Always stream stderr immediately so auth prompts are visible
+    const stderrStream = transport.stderr;
+    if (stderrStream) {
+      stderrStream.on('data', (chunk: Buffer) => {
+        const text = chunk.toString();
+        stderrChunks.push(text);
+        // Always stream stderr immediately so users can see auth prompts
+        process.stderr.write(`[${serverName}] ${text}`);
+      });
     }
 
     try {
@@ -269,13 +277,10 @@ export async function connectToServer(
     }
 
     // For successful connections, forward stderr to console
-    if (!isHttpServer(config)) {
-      const stderrStream = (transport as StdioClientTransport).stderr;
-      if (stderrStream) {
-        stderrStream.on('data', (chunk: Buffer) => {
-          process.stderr.write(chunk);
-        });
-      }
+    if (stderrStream) {
+      stderrStream.on('data', (chunk: Buffer) => {
+        process.stderr.write(chunk);
+      });
     }
 
     return {
@@ -288,18 +293,161 @@ export async function connectToServer(
 }
 
 /**
- * Create HTTP transport for remote servers
+ * Connect to an HTTP MCP server with OAuth support
  */
-function createHttpTransport(
+async function connectHttpServer(
+  serverName: string,
   config: HttpServerConfig,
-): StreamableHTTPClientTransport {
+): Promise<ConnectedClient> {
+  const { transport, oauthProvider } = await createHttpTransport(
+    serverName,
+    config,
+  );
+
+  const client = new Client(
+    {
+      name: 'mcp-cli',
+      version: VERSION,
+    },
+    {
+      capabilities: {},
+    },
+  );
+
+  try {
+    await client.connect(transport);
+    return {
+      client,
+      close: async () => {
+        await client.close();
+        stopCallbackServer();
+      },
+    };
+  } catch (error) {
+    // Handle OAuth redirect - user needs to complete authorization
+    if (error instanceof UnauthorizedError && oauthProvider) {
+      debug(`OAuth redirect required for ${serverName}`);
+
+      // Get the state that was used in the authorization URL
+      // (state() was called by the SDK when building the auth URL)
+      const state = oauthProvider.getLastState();
+      if (!state) {
+        throw new Error(
+          'OAuth state not found - authorization flow may have failed',
+        );
+      }
+
+      try {
+        console.error('Waiting for authorization...');
+        const callbackData = await oauthCallbackServer.waitForCallback(
+          state,
+          300000,
+        );
+
+        if (callbackData.error) {
+          throw new Error(
+            `OAuth error: ${callbackData.errorDescription || callbackData.error}`,
+          );
+        }
+
+        // Exchange the authorization code for tokens
+        // finishAuth stores the tokens in the provider
+        await transport.finishAuth(callbackData.code);
+
+        // Create a NEW transport and client for the actual connection
+        // (the old transport is already "started" and can't be reused)
+        const { transport: newTransport } = await createHttpTransport(
+          serverName,
+          config,
+        );
+
+        const newClient = new Client(
+          {
+            name: 'mcp-cli',
+            version: VERSION,
+          },
+          {
+            capabilities: {},
+          },
+        );
+
+        await newClient.connect(newTransport);
+
+        return {
+          client: newClient,
+          close: async () => {
+            await newClient.close();
+            stopCallbackServer();
+          },
+        };
+      } catch (authError) {
+        // Clean up callback server on auth failure
+        stopCallbackServer();
+        throw authError;
+      }
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * Create HTTP transport for remote servers
+ * Supports OAuth authentication when configured
+ */
+async function createHttpTransport(
+  serverName: string,
+  config: HttpServerConfig,
+): Promise<{
+  transport: StreamableHTTPClientTransport;
+  oauthProvider?: CliOAuthProvider;
+}> {
   const url = new URL(config.url);
 
-  return new StreamableHTTPClientTransport(url, {
+  // Check if OAuth is enabled for this server
+  const oauthEnabled =
+    config.oauth === true || typeof config.oauth === 'object';
+
+  if (oauthEnabled) {
+    // Start the OAuth callback server
+    await ensureCallbackServerRunning();
+
+    // Create OAuth provider
+    const oauthConfig = typeof config.oauth === 'object' ? config.oauth : {};
+    const oauthProvider = new CliOAuthProvider({
+      serverUrl: config.url,
+      clientName: oauthConfig.clientName || `mcp-cli (${serverName})`,
+      onAuthorizationUrl: async (authUrl) => {
+        debug(`Authorization URL: ${authUrl.toString()}`);
+      },
+    });
+
+    // If pre-configured client credentials are provided, set them
+    if (oauthConfig.clientId) {
+      oauthProvider.saveClientInformation({
+        client_id: oauthConfig.clientId,
+        client_secret: oauthConfig.clientSecret,
+      });
+    }
+
+    const transport = new StreamableHTTPClientTransport(url, {
+      authProvider: oauthProvider,
+      requestInit: {
+        headers: config.headers,
+      },
+    });
+
+    return { transport, oauthProvider };
+  }
+
+  // No OAuth - simple transport
+  const transport = new StreamableHTTPClientTransport(url, {
     requestInit: {
       headers: config.headers,
     },
   });
+
+  return { transport };
 }
 
 /**

@@ -48,6 +48,24 @@ export interface HttpServerConfig extends BaseServerConfig {
   url: string;
   headers?: Record<string, string>;
   timeout?: number;
+  /**
+   * Enable OAuth authentication for this server.
+   * When true, the CLI will perform OAuth flow if the server requires authentication.
+   * Can also be set to an object with OAuth-specific options.
+   */
+  oauth?: boolean | OAuthConfig;
+}
+
+/**
+ * OAuth configuration options
+ */
+export interface OAuthConfig {
+  /** Client name for dynamic registration */
+  clientName?: string;
+  /** Pre-configured client ID (skip dynamic registration) */
+  clientId?: string;
+  /** Pre-configured client secret */
+  clientSecret?: string;
 }
 
 export type ServerConfig = StdioServerConfig | HttpServerConfig;
