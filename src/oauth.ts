@@ -46,6 +46,126 @@ function getStoragePaths() {
 // Default callback port for OAuth redirect
 const DEFAULT_CALLBACK_PORT = 8095;
 
+// Default port fallback order: 80 (standard), common alternatives, then random
+const DEFAULT_PORT_FALLBACK_ORDER = [80, 8080, 3000, 8095, 0]; // 0 = random port
+
+/**
+ * Pretty HTML template for successful OAuth callback
+ */
+const SUCCESS_HTML = `<!DOCTYPE html>
+<html>
+  <head>
+    <title>Authorization Successful</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      }
+      .container {
+        background: white;
+        padding: 3rem;
+        border-radius: 1rem;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        text-align: center;
+        max-width: 400px;
+      }
+      .icon {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+      }
+      .icon svg { width: 40px; height: 40px; color: white; }
+      h1 { color: #1f2937; font-size: 1.5rem; margin-bottom: 0.5rem; }
+      p { color: #6b7280; line-height: 1.6; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="icon">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+      </div>
+      <h1>Authorization Successful</h1>
+      <p>You can close this window and return to the terminal.</p>
+    </div>
+    <script>setTimeout(() => window.close(), 2000);</script>
+  </body>
+</html>`;
+
+/**
+ * Pretty HTML template for OAuth error
+ */
+function errorHtml(message: string): string {
+  const escapedMessage = message
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  return `<!DOCTYPE html>
+<html>
+  <head>
+    <title>Authorization Failed</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      }
+      .container {
+        background: white;
+        padding: 3rem;
+        border-radius: 1rem;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        text-align: center;
+        max-width: 400px;
+      }
+      .icon {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+      }
+      .icon svg { width: 40px; height: 40px; color: white; }
+      h1 { color: #1f2937; font-size: 1.5rem; margin-bottom: 0.5rem; }
+      p { color: #6b7280; line-height: 1.6; }
+      .error { color: #dc2626; font-family: monospace; margin-top: 1rem; padding: 0.5rem; background: #fef2f2; border-radius: 0.25rem; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="icon">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </div>
+      <h1>Authorization Failed</h1>
+      <p>An error occurred during authorization.</p>
+      <div class="error">${escapedMessage}</div>
+    </div>
+  </body>
+</html>`;
+}
+
 /**
  * OAuth configuration from server config
  */
@@ -55,6 +175,8 @@ export interface OAuthConfig {
   clientSecret?: string;
   scope?: string;
   callbackPort?: number;
+  /** Optional: explicit list of ports to try in order (overrides default fallback) */
+  callbackPorts?: number[];
 }
 
 /**
@@ -258,17 +380,7 @@ function startCallbackServer(
         debug(`Authorization code received: ${code.substring(0, 10)}...`);
 
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(`
-          <!DOCTYPE html>
-          <html>
-            <head><title>Authorization Successful</title></head>
-            <body style="font-family: system-ui, sans-serif; text-align: center; padding: 50px;">
-              <h1>Authorization Successful</h1>
-              <p>You can close this window and return to the terminal.</p>
-              <script>setTimeout(() => window.close(), 2000);</script>
-            </body>
-          </html>
-        `);
+        res.end(SUCCESS_HTML);
 
         cleanup();
         callbackResolve({ code });
@@ -277,16 +389,7 @@ function startCallbackServer(
         debug(`OAuth error: ${message}`);
 
         res.writeHead(400, { 'Content-Type': 'text/html' });
-        res.end(`
-          <!DOCTYPE html>
-          <html>
-            <head><title>Authorization Failed</title></head>
-            <body style="font-family: system-ui, sans-serif; text-align: center; padding: 50px;">
-              <h1>Authorization Failed</h1>
-              <p>Error: ${message}</p>
-            </body>
-          </html>
-        `);
+        res.end(errorHtml(message));
 
         cleanup();
         callbackReject(new Error(`OAuth authorization failed: ${message}`));
@@ -314,6 +417,40 @@ function startCallbackServer(
       });
     });
   });
+}
+
+/**
+ * Start an OAuth callback server with port fallback
+ * Tries ports in order until one succeeds
+ * @returns The server state and the actual port used
+ */
+async function startCallbackServerWithFallback(
+  portsToTry: number[],
+  timeoutMs = 300000,
+): Promise<{ state: CallbackServerState; actualPort: number }> {
+  const errors: string[] = [];
+
+  for (const port of portsToTry) {
+    try {
+      debug(`Trying to start callback server on port ${port === 0 ? 'random' : port}`);
+      const state = await startCallbackServer(port, timeoutMs);
+      // Get the actual port (important when port was 0 for random)
+      const address = state.server.address();
+      const actualPort = typeof address === 'object' && address ? address.port : port;
+      debug(`Callback server started on port ${actualPort}`);
+      return { state, actualPort };
+    } catch (error) {
+      const message = (error as Error).message;
+      debug(`Port ${port} failed: ${message}`);
+      errors.push(`Port ${port}: ${message}`);
+      // Continue to next port
+    }
+  }
+
+  // All ports failed
+  throw new Error(
+    `Failed to start OAuth callback server. Tried ports: ${portsToTry.join(', ')}.\n${errors.join('\n')}`,
+  );
 }
 
 /**
@@ -345,6 +482,9 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
   private callbackServerState: CallbackServerState | null = null;
   private callbackServerStarting: Promise<void> | null = null;
 
+  // Actual port used by callback server (may differ from configured port due to fallback)
+  private actualCallbackPort: number | null = null;
+
   // Whether interactive auth (browser + callback) is allowed
   private _allowInteractiveAuth = true;
 
@@ -364,12 +504,19 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
   /**
    * Redirect URL for OAuth callback
    * Returns undefined for client_credentials flow (non-interactive)
+   * Uses actualCallbackPort if pre-started, otherwise configured/default port
+   * Omits port from URL when using port 80 (standard HTTP port)
    */
   get redirectUrl(): string | URL | undefined {
     if (this.oauthConfig.grantType === 'client_credentials') {
       return undefined;
     }
-    const port = this.oauthConfig.callbackPort || DEFAULT_CALLBACK_PORT;
+    // Use actual port if server was pre-started, otherwise fall back to configured/default
+    const port = this.actualCallbackPort ?? this.oauthConfig.callbackPort ?? DEFAULT_CALLBACK_PORT;
+    // Omit port from URL when using standard HTTP port 80
+    if (port === 80) {
+      return 'http://localhost/callback';
+    }
     return `http://localhost:${port}/callback`;
   }
 
@@ -459,7 +606,7 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
 
   /**
    * Redirect to authorization URL
-   * Starts the callback server FIRST, then opens the browser
+   * Starts the callback server FIRST (with port fallback), then opens the browser
    * This prevents the race condition where the browser redirects before the server is ready
    */
   redirectToAuthorization(authorizationUrl: URL): void {
@@ -471,16 +618,23 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
       return;
     }
 
-    const port = this.getCallbackPort();
+    const portsToTry = this.getPortsToTry();
 
     // Start the callback server BEFORE opening the browser
     // This is critical to avoid race conditions
     // Store the promise so waitForCallback can properly await it
-    this.callbackServerStarting = startCallbackServer(port)
-      .then((state) => {
+    this.callbackServerStarting = startCallbackServerWithFallback(portsToTry)
+      .then(({ state, actualPort }) => {
         this.callbackServerState = state;
+        this.actualCallbackPort = actualPort;
         this.callbackServerStarting = null;
-        debug(`Callback server ready for ${this.serverName}`);
+        debug(`Callback server ready for ${this.serverName} on port ${actualPort}`);
+
+        // Update authorization URL with actual redirect_uri
+        const actualRedirectUri = this.redirectUrl;
+        if (actualRedirectUri) {
+          authorizationUrl.searchParams.set('redirect_uri', String(actualRedirectUri));
+        }
 
         // Now open the browser
         console.error(`\nAuthorizing ${this.serverName}...`);
@@ -512,9 +666,11 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
     }
 
     if (!this.callbackServerState) {
-      // Fallback: start server now if not already started
-      const port = this.getCallbackPort();
-      this.callbackServerState = await startCallbackServer(port);
+      // Fallback: start server now if not already started (with port fallback)
+      const portsToTry = this.getPortsToTry();
+      const { state, actualPort } = await startCallbackServerWithFallback(portsToTry);
+      this.callbackServerState = state;
+      this.actualCallbackPort = actualPort;
     }
     return this.callbackServerState.promise;
   }
@@ -605,6 +761,65 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
    * Get the callback port for this provider
    */
   getCallbackPort(): number {
-    return this.oauthConfig.callbackPort || DEFAULT_CALLBACK_PORT;
+    return this.actualCallbackPort ?? this.oauthConfig.callbackPort ?? DEFAULT_CALLBACK_PORT;
+  }
+
+  /**
+   * Get the list of ports to try for the callback server
+   * If a specific port is configured, it comes first
+   * Then falls back to the default port order
+   */
+  getPortsToTry(): number[] {
+    const ports: number[] = [];
+
+    // If explicit callbackPorts array is configured, use it
+    if (this.oauthConfig.callbackPorts && this.oauthConfig.callbackPorts.length > 0) {
+      return [...this.oauthConfig.callbackPorts];
+    }
+
+    // If a single callbackPort is configured, try it first
+    if (this.oauthConfig.callbackPort) {
+      ports.push(this.oauthConfig.callbackPort);
+    }
+
+    // Add default fallback ports (excluding any already added)
+    for (const port of DEFAULT_PORT_FALLBACK_ORDER) {
+      if (!ports.includes(port)) {
+        ports.push(port);
+      }
+    }
+
+    return ports;
+  }
+
+  /**
+   * Pre-start the callback server to determine the actual port
+   * Call this before accessing redirectUrl to ensure correct port in authorization URL
+   * Returns the actual port used
+   */
+  async preStartCallbackServer(): Promise<number> {
+    // Skip for client_credentials flow
+    if (this.oauthConfig.grantType === 'client_credentials') {
+      return 0;
+    }
+
+    // Already started or starting
+    if (this.actualCallbackPort !== null) {
+      return this.actualCallbackPort;
+    }
+    if (this.callbackServerStarting) {
+      await this.callbackServerStarting;
+      return this.actualCallbackPort!;
+    }
+
+    const portsToTry = this.getPortsToTry();
+    debug(`Pre-starting callback server for ${this.serverName}, trying ports: ${portsToTry.join(', ')}`);
+
+    const { state, actualPort } = await startCallbackServerWithFallback(portsToTry);
+    this.callbackServerState = state;
+    this.actualCallbackPort = actualPort;
+
+    debug(`Callback server pre-started on port ${actualPort} for ${this.serverName}`);
+    return actualPort;
   }
 }

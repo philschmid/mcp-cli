@@ -273,6 +273,18 @@ export async function connectToServer(
 
       // Configure whether interactive auth is allowed
       authProvider.setAllowInteractiveAuth(allowInteractiveAuth);
+
+      // Pre-start callback server for authorization_code flow to determine actual port
+      // This ensures the redirect_uri in the authorization request uses the correct port
+      const oauthConfig = (config as HttpServerConfig).oauth;
+      if (!oauthConfig?.grantType || oauthConfig.grantType === 'authorization_code') {
+        try {
+          await authProvider.preStartCallbackServer();
+        } catch (error) {
+          debug(`Failed to pre-start callback server: ${(error as Error).message}`);
+          // Continue anyway - server will start during redirectToAuthorization
+        }
+      }
     } else {
       transport = createStdioTransport(config);
 

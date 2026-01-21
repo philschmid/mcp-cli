@@ -346,5 +346,112 @@ describe('oauth', () => {
         expect(provider.getCallbackPort()).toBe(12345);
       });
     });
+
+    describe('getPortsToTry', () => {
+      test('returns default port fallback order when no config', () => {
+        const config: OAuthConfig = {};
+        const provider = new McpCliOAuthProvider('test', 'https://example.com', config);
+
+        const ports = provider.getPortsToTry();
+        // Default order: 80, 8080, 3000, 8095, 0 (random)
+        expect(ports).toEqual([80, 8080, 3000, 8095, 0]);
+      });
+
+      test('puts configured callbackPort first in fallback order', () => {
+        const config: OAuthConfig = { callbackPort: 9000 };
+        const provider = new McpCliOAuthProvider('test', 'https://example.com', config);
+
+        const ports = provider.getPortsToTry();
+        expect(ports[0]).toBe(9000);
+        // Rest of default order follows (excluding duplicates)
+        expect(ports).toContain(80);
+        expect(ports).toContain(8080);
+      });
+
+      test('uses callbackPorts array when configured', () => {
+        const config: OAuthConfig = { callbackPorts: [3000, 3001, 3002] };
+        const provider = new McpCliOAuthProvider('test', 'https://example.com', config);
+
+        const ports = provider.getPortsToTry();
+        expect(ports).toEqual([3000, 3001, 3002]);
+      });
+
+      test('callbackPorts overrides callbackPort and defaults', () => {
+        const config: OAuthConfig = { callbackPort: 9000, callbackPorts: [4000, 4001] };
+        const provider = new McpCliOAuthProvider('test', 'https://example.com', config);
+
+        const ports = provider.getPortsToTry();
+        // callbackPorts takes precedence
+        expect(ports).toEqual([4000, 4001]);
+      });
+    });
+
+    describe('redirectUrl with port 80', () => {
+      test('omits port from URL when port is 80', () => {
+        const config: OAuthConfig = { callbackPort: 80 };
+        const provider = new McpCliOAuthProvider('test', 'https://example.com', config);
+
+        expect(provider.redirectUrl).toBe('http://localhost/callback');
+      });
+
+      test('includes port in URL for non-80 ports', () => {
+        const config: OAuthConfig = { callbackPort: 8080 };
+        const provider = new McpCliOAuthProvider('test', 'https://example.com', config);
+
+        expect(provider.redirectUrl).toBe('http://localhost:8080/callback');
+      });
+    });
+
+    describe('preStartCallbackServer', () => {
+      test('returns 0 for client_credentials flow', async () => {
+        const config: OAuthConfig = {
+          grantType: 'client_credentials',
+          clientId: 'id',
+          clientSecret: 'secret',
+        };
+        const provider = new McpCliOAuthProvider('test', 'https://example.com', config);
+
+        const port = await provider.preStartCallbackServer();
+        expect(port).toBe(0);
+      });
+
+      test('starts server and returns actual port', async () => {
+        const config: OAuthConfig = { callbackPorts: [0] }; // Use random port for test
+        const provider = new McpCliOAuthProvider('test', 'https://example.com', config);
+
+        try {
+          const port = await provider.preStartCallbackServer();
+          expect(port).toBeGreaterThan(0);
+          expect(provider.getCallbackPort()).toBe(port);
+        } finally {
+          provider.cleanupCallbackServer();
+        }
+      });
+
+      test('returns same port on subsequent calls', async () => {
+        const config: OAuthConfig = { callbackPorts: [0] }; // Use random port for test
+        const provider = new McpCliOAuthProvider('test', 'https://example.com', config);
+
+        try {
+          const port1 = await provider.preStartCallbackServer();
+          const port2 = await provider.preStartCallbackServer();
+          expect(port1).toBe(port2);
+        } finally {
+          provider.cleanupCallbackServer();
+        }
+      });
+
+      test('redirectUrl uses actual port after pre-start', async () => {
+        const config: OAuthConfig = { callbackPorts: [0] }; // Use random port
+        const provider = new McpCliOAuthProvider('test', 'https://example.com', config);
+
+        try {
+          const port = await provider.preStartCallbackServer();
+          expect(provider.redirectUrl).toBe(`http://localhost:${port}/callback`);
+        } finally {
+          provider.cleanupCallbackServer();
+        }
+      });
+    });
   });
 });

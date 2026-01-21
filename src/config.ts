@@ -50,6 +50,8 @@ export interface OAuthConfig {
   clientSecret?: string;
   scope?: string;
   callbackPort?: number;
+  /** Optional: explicit list of ports to try in order (overrides default fallback) */
+  callbackPorts?: number[];
 }
 
 /**
