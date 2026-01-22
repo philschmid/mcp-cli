@@ -34,6 +34,7 @@ export interface DaemonConnection {
   serverName: string;
   listTools: () => Promise<unknown>;
   callTool: (toolName: string, args: Record<string, unknown>) => Promise<unknown>;
+  getInstructions: () => Promise<string | undefined>;
   close: () => Promise<void>;
 }
 
@@ -281,6 +282,19 @@ export async function getDaemonConnection(
       }
 
       return response.data;
+    },
+
+    async getInstructions(): Promise<string | undefined> {
+      const response = await sendRequest(socketPath, {
+        id: generateRequestId(),
+        type: 'getInstructions',
+      });
+
+      if (!response.success) {
+        throw new Error(response.error?.message ?? 'getInstructions failed');
+      }
+
+      return response.data as string | undefined;
     },
 
     async close(): Promise<void> {

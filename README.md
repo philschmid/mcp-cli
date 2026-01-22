@@ -6,11 +6,13 @@ A lightweight, Bun-based CLI for interacting with [MCP (Model Context Protocol)]
 
 - 🪶 **Lightweight** - Minimal dependencies, fast startup
 - 📦 **Single Binary** - Compile to standalone executable via `bun build --compile`
-- 🔧 **Shell-Friendly** - JSON output for call, intuitive subcommands (`info`, `grep`, `call`)
+- 🔧 **Shell-Friendly** - JSON output for call, pipes with `jq`, chaining support
 - 🤖 **Agent-Optimized** - Designed for AI coding agents (Gemini CLI, Claude Code, etc.)
 - 🔌 **Universal** - Supports both stdio and HTTP MCP servers
 - ⚡ **Connection Pooling** - Lazy-spawn daemon keeps connections warm (60s idle timeout)
-- 💡 **Actionable Errors** - Structured error messages with recovery suggestions
+- � **Tool Filtering** - Allow/disable specific tools per server via config
+- 📋 **Server Instructions** - Display MCP server instructions in output
+- �💡 **Actionable Errors** - Structured error messages with available servers and recovery suggestions
 
 ![mcp-cli](./comparison.jpeg)
 
@@ -55,10 +57,10 @@ Create `mcp_servers.json` in your current directory or `~/.config/mcp/`:
 
 ```bash
 # List all servers and tools
-mcp-cli info
+mcp-cli
 
 # With descriptions
-mcp-cli info -d
+mcp-cli -d
 ```
 
 ### 4. Call a tool
@@ -74,7 +76,7 @@ mcp-cli call filesystem read_file '{"path": "./README.md"}'
 ## Usage
 
 ```
-mcp-cli [options] info                        List all servers and tools
+mcp-cli [options]                             List all servers and tools
 mcp-cli [options] info <server>               Show server tools and parameters
 mcp-cli [options] info <server> <tool>        Show tool schema
 mcp-cli [options] grep <pattern>              Search tools by glob pattern
@@ -109,7 +111,7 @@ mcp-cli [options] call <server> <tool> <json> Call tool with JSON arguments
 
 ```bash
 # Basic listing
-$ mcp-cli info
+$ mcp-cli
 github
   • search_repositories
   • get_file_contents
@@ -120,7 +122,7 @@ filesystem
   • list_directory
 
 # With descriptions
-$ mcp-cli info --with-descriptions
+$ mcp-cli --with-descriptions
 github
   • search_repositories - Search for GitHub repositories
   • get_file_contents - Get contents of a file or directory
@@ -214,12 +216,60 @@ cat args.json | mcp-cli call server tool
 
 # Using jq to build complex JSON
 jq -n '{query: "mcp", filters: ["active", "starred"]}' | mcp-cli call github search
-
-# Complex command chaining (call outputs JSON by default)
-mcp-cli call filesystem search_files '{"path": "src/", "pattern": "*.ts"}' | jq -r '.content[0].text' | head -1 | xargs -I {} mcp-cli call filesystem read_file "{\"path\": \"{}\"}"
 ```
 
 **Why stdin?** Shell interpretation of `{}`, quotes, and special characters requires careful escaping. Stdin bypasses shell parsing entirely.
+
+#### Advanced Chaining Examples
+
+Chain multiple MCP calls together using pipes and shell tools:
+
+```bash
+# 1. Search and read: Find files matching pattern, then read the first one
+mcp-cli call filesystem search_files '{"path": "src/", "pattern": "*.ts"}' \
+  | jq -r '.content[0].text | split("\n")[0]' \
+  | xargs -I {} mcp-cli call filesystem read_file '{"path": "{}"}'
+
+# 2. Process multiple results: Read all matching files
+mcp-cli call filesystem search_files '{"path": ".", "pattern": "*.md"}' \
+  | jq -r '.content[0].text | split("\n")[]' \
+  | while read file; do
+      echo "=== $file ==="
+      mcp-cli call filesystem read_file "{\"path\": \"$file\"}" | jq -r '.content[0].text'
+    done
+
+# 3. Extract and transform: Get repo info, extract URLs
+mcp-cli call github search_repositories '{"query": "mcp server", "per_page": 5}' \
+  | jq -r '.content[0].text | fromjson | .items[].html_url'
+
+# 4. Conditional execution: Check file exists before reading
+mcp-cli call filesystem list_directory '{"path": "."}' \
+  | jq -e '.content[0].text | contains("README.md")' \
+  && mcp-cli call filesystem read_file '{"path": "./README.md"}'
+
+# 5. Save output to file
+mcp-cli call github get_file_contents '{"owner": "user", "repo": "project", "path": "src/main.ts"}' \
+  | jq -r '.content[0].text' > main.ts
+
+# 6. Error handling in scripts
+if result=$(mcp-cli call filesystem read_file '{"path": "./config.json"}' 2>/dev/null); then
+  echo "$result" | jq '.content[0].text | fromjson'
+else
+  echo "File not found, using defaults"
+fi
+
+# 7. Aggregate results from multiple servers
+{
+  mcp-cli call github search_repositories '{"query": "mcp", "per_page": 3}'
+  mcp-cli call filesystem list_directory '{"path": "./src"}'
+} | jq -s '.'
+```
+
+**Tips for chaining:**
+- Use `jq -r` for raw output (no quotes)
+- Use `jq -e` for conditional checks (exit code 1 if false)
+- Use `2>/dev/null` to suppress errors when testing
+- Use `| jq -s '.'` to combine multiple JSON outputs
 
 
 ## Configuration
@@ -250,6 +300,42 @@ The CLI uses `mcp_servers.json`, compatible with Claude Desktop, Gemini or VS Co
 ```
 
 **Environment Variable Substitution:** Use `${VAR_NAME}` syntax anywhere in the config. Values are substituted at load time. By default, missing environment variables cause an error with a clear message. Set `MCP_STRICT_ENV=false` to use empty values instead (with a warning).
+
+### Tool Filtering
+
+Restrict which tools are available from a server using `allowedTools` and `disabledTools`:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."],
+      "allowedTools": ["read_file", "list_directory"],
+      "disabledTools": ["delete_file"]
+    }
+  }
+}
+```
+
+**Rules:**
+- `allowedTools`: Only tools matching these patterns are available (supports glob: `*`, `?`)
+- `disabledTools`: Tools matching these patterns are excluded
+- **`disabledTools` takes precedence** over `allowedTools`
+- Filtering applies globally to all CLI operations (info, grep, call)
+
+**Examples:**
+```json
+// Only allow read operations
+"allowedTools": ["read_*", "list_*", "search_*"]
+
+// Allow all except destructive operations
+"disabledTools": ["delete_*", "write_*", "create_*"]
+
+// Combine: allow file operations but disable delete
+"allowedTools": ["*file*"],
+"disabledTools": ["delete_file"]
+```
 
 ### Config Resolution
 

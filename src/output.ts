@@ -37,13 +37,21 @@ function color(text: string, colorCode: string): string {
  * Format server list for display
  */
 export function formatServerList(
-  servers: Array<{ name: string; tools: ToolInfo[] }>,
+  servers: Array<{ name: string; tools: ToolInfo[]; instructions?: string }>,
   withDescriptions: boolean,
 ): string {
   const lines: string[] = [];
 
   for (const server of servers) {
     lines.push(color(server.name, colors.bold + colors.cyan));
+
+    // Show instructions if available (first line only in list view, or all if short)
+    if (server.instructions) {
+      const instructionLines = server.instructions.split('\n');
+      const firstLine = instructionLines[0].slice(0, 100);
+      const suffix = instructionLines.length > 1 || instructionLines[0].length > 100 ? '...' : '';
+      lines.push(`  ${color(`Instructions: ${firstLine}${suffix}`, colors.dim)}`);
+    }
 
     for (const tool of server.tools) {
       if (withDescriptions && tool.description) {
@@ -69,11 +77,13 @@ export function formatSearchResults(
   const lines: string[] = [];
 
   for (const result of results) {
-    const path = `${color(result.server, colors.cyan)}/${color(result.tool.name, colors.green)}`;
-    if (withDescriptions && result.tool.description) {
-      lines.push(`${path} - ${color(result.tool.description, colors.dim)}`);
+    const server = color(result.server, colors.cyan);
+    const tool = color(result.tool.name, colors.green);
+    // Always show description if available (grep is for discovery)
+    if (result.tool.description) {
+      lines.push(`${server} ${tool} ${color(result.tool.description, colors.dim)}`);
     } else {
-      lines.push(path);
+      lines.push(`${server} ${tool}`);
     }
   }
 
@@ -88,6 +98,7 @@ export function formatServerDetails(
   config: ServerConfig,
   tools: ToolInfo[],
   withDescriptions = false,
+  instructions?: string,
 ): string {
   const lines: string[] = [];
 
@@ -103,6 +114,17 @@ export function formatServerDetails(
     lines.push(
       `${color('Command:', colors.bold)} ${config.command} ${(config.args || []).join(' ')}`,
     );
+  }
+
+  if (instructions) {
+    lines.push('');
+    lines.push(`${color('Instructions:', colors.bold)}`);
+    // Indent multi-line instructions
+    const indentedInstructions = instructions
+      .split('\n')
+      .map(line => `  ${line}`)
+      .join('\n');
+    lines.push(indentedInstructions);
   }
 
   lines.push('');

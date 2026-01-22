@@ -80,7 +80,7 @@ describe('output', () => {
       expect(output).toContain('find');
     });
 
-    test('includes descriptions when requested', () => {
+    test('always includes descriptions when available', () => {
       const results = [
         {
           server: 'test',
@@ -92,11 +92,12 @@ describe('output', () => {
         },
       ];
 
+      // Descriptions are always shown in grep output (regardless of -d flag)
       const withDesc = formatSearchResults(results, true);
       expect(withDesc).toContain('Tool description');
 
       const withoutDesc = formatSearchResults(results, false);
-      expect(withoutDesc).not.toContain('Tool description');
+      expect(withoutDesc).toContain('Tool description');
     });
   });
 

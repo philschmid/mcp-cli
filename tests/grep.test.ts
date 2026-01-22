@@ -134,18 +134,21 @@ describe('globToRegex', () => {
       expect(regex.test('list_directory')).toBe(false);
     });
 
-    test('matches by server/tool path', () => {
-      const regex = globToRegex('filesystem/*');
-      expect(regex.test('filesystem/read_file')).toBe(true);
-      expect(regex.test('github/search_repos')).toBe(false);
+    test('matches tool names only (not server/tool paths)', () => {
+      // Since grep now only matches tool names, patterns with slashes
+      // are for the regex function itself, not how grep uses it
+      const regex = globToRegex('read_*');
+      expect(regex.test('read_file')).toBe(true);
+      expect(regex.test('read_directory')).toBe(true);
+      expect(regex.test('write_file')).toBe(false);
     });
 
-    test('matches tools across all servers', () => {
-      const regex = globToRegex('**search*');
+    test('matches search-related tools', () => {
+      const regex = globToRegex('*search*');
       expect(regex.test('search')).toBe(true);
       expect(regex.test('search_repos')).toBe(true);
-      expect(regex.test('github/search_repos')).toBe(true);
-      expect(regex.test('elasticsearch/search')).toBe(true);
+      expect(regex.test('full_text_search')).toBe(true);
+      expect(regex.test('find_files')).toBe(false);
     });
   });
 });

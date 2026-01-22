@@ -24,7 +24,7 @@ import { connectToServer, listTools, callTool, type ConnectedClient } from './cl
 
 export interface DaemonRequest {
   id: string;
-  type: 'listTools' | 'callTool' | 'ping' | 'close';
+  type: 'listTools' | 'callTool' | 'ping' | 'close' | 'getInstructions';
   toolName?: string;
   args?: Record<string, unknown>;
 }
@@ -291,6 +291,11 @@ export async function runDaemon(serverName: string, config: ServerConfig): Promi
           }
           const result = await callTool(mcpClient.client, request.toolName, request.args ?? {});
           return { id: request.id, success: true, data: result };
+        }
+
+        case 'getInstructions': {
+          const instructions = mcpClient.client.getInstructions();
+          return { id: request.id, success: true, data: instructions };
         }
 
         case 'close':

@@ -16,9 +16,25 @@ import {
 } from './errors.js';
 
 /**
+ * Base server configuration with tool filtering
+ * 
+ * Tool Filtering Rules:
+ * - If allowedTools is specified, only tools matching those patterns are available
+ * - If disabledTools is specified, tools matching those patterns are excluded
+ * - disabledTools takes precedence over allowedTools (a tool in both lists is disabled)
+ * - Patterns support glob syntax (e.g., "read_*", "*file*")
+ */
+export interface BaseServerConfig {
+  /** Glob patterns for tools to allow (if empty/undefined, all tools are allowed) */
+  allowedTools?: string[];
+  /** Glob patterns for tools to exclude (takes precedence over allowedTools) */
+  disabledTools?: string[];
+}
+
+/**
  * stdio server configuration (local process)
  */
-export interface StdioServerConfig {
+export interface StdioServerConfig extends BaseServerConfig {
   command: string;
   args?: string[];
   env?: Record<string, string>;
@@ -28,7 +44,7 @@ export interface StdioServerConfig {
 /**
  * HTTP server configuration (remote)
  */
-export interface HttpServerConfig {
+export interface HttpServerConfig extends BaseServerConfig {
   url: string;
   headers?: Record<string, string>;
   timeout?: number;
@@ -38,6 +54,93 @@ export type ServerConfig = StdioServerConfig | HttpServerConfig;
 
 export interface McpServersConfig {
   mcpServers: Record<string, ServerConfig>;
+}
+
+// ============================================================================
+// Tool Filtering
+// ============================================================================
+
+/**
+ * Simple glob pattern matcher for tool names
+ * Supports * (any characters) and ? (single character)
+ */
+function matchesPattern(name: string, pattern: string): boolean {
+  // Convert glob pattern to regex
+  const regexPattern = pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape special regex chars
+    .replace(/\*/g, '.*') // * matches any characters
+    .replace(/\?/g, '.'); // ? matches single character
+
+  return new RegExp(`^${regexPattern}$`, 'i').test(name);
+}
+
+/**
+ * Check if a tool name matches any of the given patterns
+ */
+function matchesAnyPattern(name: string, patterns: string[]): boolean {
+  return patterns.some(pattern => matchesPattern(name, pattern));
+}
+
+/**
+ * Filter tools based on allowedTools and disabledTools configuration
+ * 
+ * Rules:
+ * - If allowedTools is specified, only tools matching those patterns are available
+ * - If disabledTools is specified, tools matching those patterns are excluded
+ * - disabledTools takes precedence over allowedTools
+ * 
+ * @param tools - Array of tools with name property
+ * @param config - Server config with optional allowedTools/disabledTools
+ * @returns Filtered array of tools
+ */
+export function filterTools<T extends { name: string }>(
+  tools: T[],
+  config: ServerConfig,
+): T[] {
+  const { allowedTools, disabledTools } = config;
+
+  return tools.filter(tool => {
+    // First check if tool is in disabledTools (takes precedence)
+    if (disabledTools && disabledTools.length > 0) {
+      if (matchesAnyPattern(tool.name, disabledTools)) {
+        return false;
+      }
+    }
+
+    // Then check if allowedTools is specified
+    if (allowedTools && allowedTools.length > 0) {
+      return matchesAnyPattern(tool.name, allowedTools);
+    }
+
+    // No filtering specified, allow all
+    return true;
+  });
+}
+
+/**
+ * Check if a specific tool is allowed by the config
+ * 
+ * @param toolName - Name of the tool to check
+ * @param config - Server config with optional allowedTools/disabledTools
+ * @returns true if tool is allowed, false otherwise
+ */
+export function isToolAllowed(toolName: string, config: ServerConfig): boolean {
+  const { allowedTools, disabledTools } = config;
+
+  // First check if tool is in disabledTools (takes precedence)
+  if (disabledTools && disabledTools.length > 0) {
+    if (matchesAnyPattern(toolName, disabledTools)) {
+      return false;
+    }
+  }
+
+  // Then check if allowedTools is specified
+  if (allowedTools && allowedTools.length > 0) {
+    return matchesAnyPattern(toolName, allowedTools);
+  }
+
+  // No filtering specified, allow all
+  return true;
 }
 
 /**

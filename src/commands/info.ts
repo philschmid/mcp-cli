@@ -94,6 +94,7 @@ export async function infoCommand(options: InfoOptions): Promise<void> {
     } else {
       // Show server details
       const tools = await connection.listTools();
+      const instructions = await connection.getInstructions();
 
       // Human-readable output
       console.log(
@@ -102,6 +103,7 @@ export async function infoCommand(options: InfoOptions): Promise<void> {
           serverConfig,
           tools,
           options.withDescriptions,
+          instructions,
         ),
       );
     }

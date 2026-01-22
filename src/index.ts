@@ -3,7 +3,7 @@
  * MCP-CLI - A lightweight CLI for interacting with MCP servers
  *
  * Commands:
- *   mcp-cli info                     List all servers and tools
+ *   mcp-cli                         List all servers and tools
  *   mcp-cli info <server>            Show server details
  *   mcp-cli info <server> <tool>     Show tool schema
  *   mcp-cli grep <pattern>           Search tools by glob pattern
@@ -20,6 +20,8 @@ import {
   DEFAULT_MAX_RETRIES,
   DEFAULT_RETRY_DELAY_MS,
   DEFAULT_TIMEOUT_SECONDS,
+  listServerNames,
+  loadConfig,
 } from './config.js';
 import {
   ErrorCode,
@@ -33,7 +35,7 @@ import {
 import { VERSION } from './version.js';
 
 interface ParsedArgs {
-  command: 'info' | 'grep' | 'call' | 'help' | 'version';
+  command: 'list' | 'info' | 'grep' | 'call' | 'help' | 'version';
   server?: string;
   tool?: string;
   pattern?: string;
@@ -153,9 +155,9 @@ function parseArgs(args: string[]): ParsedArgs {
     }
   }
 
-  // No positional args = list all (info with no target)
+  // No positional args = list all servers
   if (positional.length === 0) {
-    result.command = 'info';
+    result.command = 'list';
     return result;
   }
 
@@ -169,7 +171,44 @@ function parseArgs(args: string[]): ParsedArgs {
     result.command = 'info';
     const remaining = positional.slice(1);
     const { server, tool } = parseServerTool(remaining);
-    result.server = server || undefined;
+
+    // info requires a server argument - show available servers in error
+    if (!server) {
+      // Try to load config synchronously to show available servers
+      let availableServers: string[] = [];
+      const configPaths = [
+        result.configPath,
+        process.env.MCP_CONFIG_PATH,
+        './mcp_servers.json',
+        `${process.env.HOME}/.mcp_servers.json`,
+        `${process.env.HOME}/.config/mcp/mcp_servers.json`,
+      ].filter(Boolean) as string[];
+
+      const fs = require('fs');
+      for (const cfgPath of configPaths) {
+        try {
+          const content = fs.readFileSync(cfgPath, 'utf-8');
+          const config = JSON.parse(content);
+          if (config.mcpServers) {
+            availableServers = Object.keys(config.mcpServers);
+            break;
+          }
+        } catch {
+          // Try next path
+        }
+      }
+
+      const serverList = availableServers.length > 0
+        ? availableServers.join(', ')
+        : '(none found)';
+
+      console.error(`Error [MISSING_ARGUMENT]: Missing required argument for info: server`);
+      console.error(`  Available servers: ${serverList}`);
+      console.error(`  Suggestion: Use 'mcp-cli info <server>' to see server details, or just 'mcp-cli' to list all`);
+      process.exit(ErrorCode.CLIENT_ERROR);
+    }
+
+    result.server = server;
     result.tool = tool;
     return result;
   }
@@ -250,24 +289,20 @@ function parseArgs(args: string[]): ParsedArgs {
   }
 
   // =========================================================================
-  // Backward compatibility: server/tool format without subcommand
+  // Slash format without subcommand → error (require explicit subcommand)
   // =========================================================================
 
   if (firstArg.includes('/')) {
-    const { server, tool } = parseServerTool([firstArg]);
-    result.server = server;
-    result.tool = tool;
-
-    if (positional.length > 1) {
-      // Has args, treat as call
-      result.command = 'call';
-      const argsValue = positional.slice(1).join(' ');
-      result.args = argsValue === '-' ? undefined : argsValue;
-    } else {
-      // No args, treat as info
-      result.command = 'info';
-    }
-    return result;
+    const parts = firstArg.split('/');
+    const serverName = parts[0];
+    const toolName = parts[1] || '';
+    const hasArgs = positional.length > 1;
+    console.error(
+      formatCliError(
+        ambiguousCommandError(serverName, toolName, hasArgs),
+      ),
+    );
+    process.exit(ErrorCode.CLIENT_ERROR);
   }
 
   // =========================================================================
@@ -311,18 +346,18 @@ function printHelp(): void {
 mcp-cli v${VERSION} - A lightweight CLI for MCP servers
 
 Usage:
-  mcp-cli [options] info                        List all servers and tools
-  mcp-cli [options] info <server>               Show server details
-  mcp-cli [options] info <server> <tool>        Show tool schema
-  mcp-cli [options] grep <pattern>              Search tools by glob pattern
-  mcp-cli [options] call <server> <tool>        Call tool (reads JSON from stdin if no args)
-  mcp-cli [options] call <server> <tool> <json> Call tool with JSON arguments
+  mcp-cli [options]                              List all servers and tools
+  mcp-cli [options] info <server>                Show server details
+  mcp-cli [options] info <server> <tool>         Show tool schema
+  mcp-cli [options] grep <pattern>               Search tools by glob pattern
+  mcp-cli [options] call <server> <tool>         Call tool (reads JSON from stdin if no args)
+  mcp-cli [options] call <server> <tool> <json>  Call tool with JSON arguments
 
 Formats (both work):
-  mcp-cli info server tool                      Space-separated
-  mcp-cli info server/tool                      Slash-separated
-  mcp-cli call server tool '{}'                 Space-separated
-  mcp-cli call server/tool '{}'                 Slash-separated
+  mcp-cli info server tool                       Space-separated
+  mcp-cli info server/tool                       Slash-separated
+  mcp-cli call server tool '{}'                  Space-separated
+  mcp-cli call server/tool '{}'                  Slash-separated
 
 Options:
   -h, --help               Show this help message
@@ -331,22 +366,22 @@ Options:
   -c, --config <path>      Path to mcp_servers.json config file
 
 Output:
-  info/grep                Human-readable text to stdout
+  mcp-cli/info/grep        Human-readable text to stdout
   call                     Raw JSON to stdout (for piping)
   Errors                   Always to stderr
 
 Examples:
-  mcp-cli info                                   # List all servers
-  mcp-cli info -d                                # List with descriptions
+  mcp-cli                                        # List all servers
+  mcp-cli -d                                     # List with descriptions
   mcp-cli grep "*file*"                          # Search for file tools
   mcp-cli info filesystem                        # Show server tools
   mcp-cli info filesystem read_file              # Show tool schema
   mcp-cli call filesystem read_file '{}'         # Call tool
   cat input.json | mcp-cli call server tool      # Read from stdin (no '-' needed)
 
-Backward Compatible:
-  mcp-cli                                        # Same as: mcp-cli info
-  mcp-cli filesystem/read_file '{}'              # Same as: mcp-cli call filesystem read_file '{}'
+Environment Variables:
+  MCP_NO_DAEMON=1        Disable connection caching (force fresh connections)
+  MCP_DAEMON_TIMEOUT=N   Set daemon idle timeout in seconds (default: 60)
 
 Config File:
   The CLI looks for mcp_servers.json in:
@@ -381,20 +416,20 @@ async function main(): Promise<void> {
       console.log(`mcp-cli v${VERSION}`);
       break;
 
+    case 'list':
+      await listCommand({
+        withDescriptions: args.withDescriptions,
+        configPath: args.configPath,
+      });
+      break;
+
     case 'info':
-      if (!args.server) {
-        // No server → list all
-        await listCommand({
-          withDescriptions: args.withDescriptions,
-          configPath: args.configPath,
-        });
-      } else {
-        await infoCommand({
-          target: buildTarget(args.server, args.tool),
-          withDescriptions: args.withDescriptions,
-          configPath: args.configPath,
-        });
-      }
+      // info always has a server (validated in parseArgs)
+      await infoCommand({
+        target: buildTarget(args.server, args.tool),
+        withDescriptions: args.withDescriptions,
+        configPath: args.configPath,
+      });
       break;
 
     case 'grep':

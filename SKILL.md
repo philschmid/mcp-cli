@@ -11,7 +11,7 @@ Access MCP servers through the command line. MCP enables interaction with extern
 
 | Command | Output |
 |---------|--------|
-| `mcp-cli info` | List all servers and tools |
+| `mcp-cli` | List all servers and tools |
 | `mcp-cli info <server>` | Show server tools and parameters |
 | `mcp-cli info <server> <tool>` | Get tool JSON schema |
 | `mcp-cli grep "<pattern>"` | Search tools by name |
@@ -22,7 +22,7 @@ Access MCP servers through the command line. MCP enables interaction with extern
 
 ## Workflow
 
-1. **Discover**: `mcp-cli info` → see available servers
+1. **Discover**: `mcp-cli` → see available servers
 2. **Explore**: `mcp-cli info <server>` → see tools with parameters
 3. **Inspect**: `mcp-cli info <server> <tool>` → get full JSON schema
 4. **Execute**: `mcp-cli call <server> <tool> '<json>'` → run with arguments
@@ -31,10 +31,10 @@ Access MCP servers through the command line. MCP enables interaction with extern
 
 ```bash
 # List all servers
-mcp-cli info
+mcp-cli
 
-# With descriptions
-mcp-cli info -d
+# With descriptions  
+mcp-cli -d
 
 # See server tools
 mcp-cli info filesystem
@@ -52,9 +52,40 @@ cat args.json | mcp-cli call filesystem read_file
 # Search for tools
 mcp-cli grep "*file*"
 
-# Call tool (call outputs JSON by default)
-mcp-cli call filesystem read_file '{"path": "./file"}' | jq '.content[0].text'
+# Extract text from result
+mcp-cli call filesystem read_file '{"path": "./file"}' | jq -r '.content[0].text'
 ```
+
+## Advanced Chaining
+
+```bash
+# Chain: search files → read first match
+mcp-cli call filesystem search_files '{"path": ".", "pattern": "*.md"}' \
+  | jq -r '.content[0].text | split("\n")[0]' \
+  | xargs -I {} mcp-cli call filesystem read_file '{"path": "{}"}'
+
+# Loop: process multiple files
+mcp-cli call filesystem list_directory '{"path": "./src"}' \
+  | jq -r '.content[0].text | split("\n")[]' \
+  | while read f; do mcp-cli call filesystem read_file "{\"path\": \"$f\"}"; done
+
+# Conditional: check before reading
+mcp-cli call filesystem list_directory '{"path": "."}' \
+  | jq -e '.content[0].text | contains("README")' \
+  && mcp-cli call filesystem read_file '{"path": "./README.md"}'
+
+# Multi-server aggregation
+{
+  mcp-cli call github search_repositories '{"query": "mcp", "per_page": 3}'
+  mcp-cli call filesystem list_directory '{"path": "."}'
+} | jq -s '.'
+
+# Save to file
+mcp-cli call github get_file_contents '{"owner": "x", "repo": "y", "path": "z"}' \
+  | jq -r '.content[0].text' > output.txt
+```
+
+**jq tips:** `-r` raw output, `-e` exit 1 if false, `-s` slurp multiple inputs
 
 ## Options
 

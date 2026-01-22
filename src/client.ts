@@ -11,12 +11,14 @@ import {
   type ServerConfig,
   type StdioServerConfig,
   debug,
+  filterTools,
   getConcurrencyLimit,
   getMaxRetries,
   getRetryDelayMs,
   getTimeoutMs,
   isHttpServer,
   isDaemonEnabled,
+  isToolAllowed,
 } from './config.js';
 import { getDaemonConnection, cleanupOrphanedDaemons, type DaemonConnection } from './daemon-client.js';
 import { VERSION } from './version.js';
@@ -35,6 +37,7 @@ export interface ConnectedClient {
 export interface McpConnection {
   listTools: () => Promise<ToolInfo[]>;
   callTool: (toolName: string, args: Record<string, unknown>) => Promise<unknown>;
+  getInstructions: () => Promise<string | undefined>;
   close: () => Promise<void>;
   isDaemon: boolean;
 }
@@ -393,10 +396,19 @@ export async function getConnection(
         return {
           async listTools(): Promise<ToolInfo[]> {
             const data = await daemonConn.listTools();
-            return data as ToolInfo[];
+            const tools = data as ToolInfo[];
+            // Apply tool filtering from config
+            return filterTools(tools, config);
           },
           async callTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
+            // Check if tool is allowed before calling
+            if (!isToolAllowed(toolName, config)) {
+              throw new Error(`Tool "${toolName}" is disabled by configuration`);
+            }
             return daemonConn.callTool(toolName, args);
+          },
+          async getInstructions(): Promise<string | undefined> {
+            return daemonConn.getInstructions();
           },
           async close(): Promise<void> {
             await daemonConn.close();
@@ -415,10 +427,19 @@ export async function getConnection(
 
   return {
     async listTools(): Promise<ToolInfo[]> {
-      return listTools(client);
+      const tools = await listTools(client);
+      // Apply tool filtering from config
+      return filterTools(tools, config);
     },
     async callTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
+      // Check if tool is allowed before calling
+      if (!isToolAllowed(toolName, config)) {
+        throw new Error(`Tool "${toolName}" is disabled by configuration`);
+      }
       return callTool(client, toolName, args);
+    },
+    async getInstructions(): Promise<string | undefined> {
+      return client.getInstructions();
     },
     async close(): Promise<void> {
       await close();

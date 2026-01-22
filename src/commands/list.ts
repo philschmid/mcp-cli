@@ -27,6 +27,7 @@ export interface ListOptions {
 interface ServerWithTools {
   name: string;
   tools: ToolInfo[];
+  instructions?: string;
   error?: string;
 }
 
@@ -72,8 +73,9 @@ async function fetchServerTools(
     connection = await getConnection(serverName, serverConfig);
 
     const tools = await connection.listTools();
+    const instructions = await connection.getInstructions();
     debug(`${serverName}: loaded ${tools.length} tools`);
-    return { name: serverName, tools };
+    return { name: serverName, tools, instructions };
   } catch (error) {
     const errorMsg = (error as Error).message;
     debug(`${serverName}: connection failed - ${errorMsg}`);
@@ -129,6 +131,7 @@ export async function listCommand(options: ListOptions): Promise<void> {
   // Convert errors to tool-like display for human output
   const displayServers = servers.map((s) => ({
     name: s.name,
+    instructions: s.instructions,
     tools: s.error
       ? [
           {

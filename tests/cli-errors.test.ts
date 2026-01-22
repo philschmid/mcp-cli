@@ -170,10 +170,11 @@ describe('CLI Error Handling Tests', () => {
       expect(result.stderr).not.toContain('AMBIGUOUS_COMMAND');
     });
 
-    test('backward compat: server/tool json still works', async () => {
+    test('slash format without subcommand errors (backward compat removed)', async () => {
       const result = await runCli(['server/tool', '{}']);
-      // Will fail on server, but should not error as AMBIGUOUS
-      expect(result.stderr).not.toContain('AMBIGUOUS_COMMAND');
+      // Backward compat removed - now errors as AMBIGUOUS
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('AMBIGUOUS_COMMAND');
     });
   });
 

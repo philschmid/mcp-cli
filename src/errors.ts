@@ -202,6 +202,19 @@ export function toolExecutionError(
   };
 }
 
+export function toolDisabledError(
+  toolName: string,
+  serverName: string,
+): CliError {
+  return {
+    code: ErrorCode.CLIENT_ERROR,
+    type: 'TOOL_DISABLED',
+    message: `Tool "${toolName}" is disabled by configuration`,
+    details: `Server "${serverName}" has allowedTools/disabledTools filtering configured`,
+    suggestion: `Check your mcp_servers.json config. Remove "${toolName}" from disabledTools or add it to allowedTools.`,
+  };
+}
+
 // ============================================================================
 // Argument Errors
 // ============================================================================

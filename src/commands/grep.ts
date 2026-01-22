@@ -127,14 +127,8 @@ async function searchServerTools(
     const results: SearchResult[] = [];
 
     for (const tool of tools) {
-      // Match against tool name, server/tool path, or description
-      const fullPath = `${serverName}/${tool.name}`;
-      const matchesName = pattern.test(tool.name);
-      const matchesPath = pattern.test(fullPath);
-      const matchesDescription =
-        tool.description && pattern.test(tool.description);
-
-      if (matchesName || matchesPath || matchesDescription) {
+      // Match against tool name only (not server name or description)
+      if (pattern.test(tool.name)) {
         results.push({ server: serverName, tool });
       }
     }
@@ -207,6 +201,9 @@ export async function grepCommand(options: GrepOptions): Promise<void> {
 
   if (allResults.length === 0) {
     console.log(`No tools found matching "${options.pattern}"`);
+    console.log(`  Tip: Pattern matches tool names only (not server names)`);
+    console.log(`  Tip: Use '*' for wildcards, e.g. '*file*' or 'read_*'`);
+    console.log(`  Tip: Run 'mcp-cli' to list all available tools`);
     return;
   }
 
