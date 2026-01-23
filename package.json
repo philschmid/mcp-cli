@@ -1,6 +1,6 @@
 {
   "name": "mcp-cli",
-  "version": "0.1.4",
+  "version": "0.3.0",
   "description": "A lightweight CLI for interacting with MCP (Model Context Protocol) servers",
   "type": "module",
   "main": "src/index.ts",
