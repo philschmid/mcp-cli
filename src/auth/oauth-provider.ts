@@ -111,9 +111,10 @@ export class CliOAuthProvider implements OAuthClientProvider {
     // Define client metadata for dynamic registration
     // Note: Some MCP servers (like Datadog's) use a pre-registered shared client
     // and will return fixed redirect_uris regardless of what we send
+    // The redirect_uris will be updated dynamically when clientMetadata getter is called
     this._clientMetadata = {
       client_name: options.clientName || 'MCP CLI',
-      redirect_uris: ['http://localhost/callback'], // Standard OAuth localhost callback
+      redirect_uris: ['http://localhost/callback'], // Will be overridden dynamically
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
       token_endpoint_auth_method: 'none', // Public client
@@ -122,19 +123,30 @@ export class CliOAuthProvider implements OAuthClientProvider {
 
   /**
    * Get the redirect URL for OAuth
-   * Uses http://localhost/callback which is commonly pre-registered for CLI tools
+   * Uses the actual port from the callback server
    */
   get redirectUrl(): string | URL {
-    // Use standard OAuth localhost callback (port 80)
-    // This matches the pre-registered redirect_uri in most MCP OAuth servers
-    return 'http://localhost/callback';
+    // Get the actual redirect URL from the running callback server
+    // This ensures we use the port that's actually listening
+    return oauthCallbackServer.getRedirectUrl();
   }
 
   /**
    * Get client metadata for dynamic registration
+   * Returns metadata with dynamically resolved redirect_uris from the callback server
    */
   get clientMetadata(): OAuthClientMetadata {
-    return this._clientMetadata;
+    // Try to get the actual redirect URL from the callback server
+    try {
+      const redirectUrl = oauthCallbackServer.getRedirectUrl();
+      return {
+        ...this._clientMetadata,
+        redirect_uris: [redirectUrl],
+      };
+    } catch {
+      // Server not running yet, return default metadata
+      return this._clientMetadata;
+    }
   }
 
   /**
