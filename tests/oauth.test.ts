@@ -186,6 +186,44 @@ describe('oauth', () => {
         const info = provider.clientInformation();
         expect(info?.client_id).toBe('static-id');
       });
+
+      test('invalidates client when stored redirect_uris do not match current redirectUrl', () => {
+        const config: OAuthConfig = { callbackPort: 3000 };
+        const provider = new McpCliOAuthProvider('test', 'https://example.com', config);
+
+        // Save client info with different redirect_uri (e.g., from previous registration on port 8080)
+        const clientPath = join(testDir, '.mcp-cli', 'clients', 'test.json');
+        const storedClient = {
+          client_id: 'old-client',
+          redirect_uris: ['http://localhost:8080/callback'],
+        };
+        writeFileSync(clientPath, JSON.stringify(storedClient));
+
+        // Should return undefined because redirect_uris don't match
+        // (current redirectUrl is http://localhost:3000/callback but stored has 8080)
+        const info = provider.clientInformation();
+        expect(info).toBeUndefined();
+
+        // Client file should be deleted
+        expect(existsSync(clientPath)).toBe(false);
+      });
+
+      test('returns client when stored redirect_uris match current redirectUrl', () => {
+        const config: OAuthConfig = { callbackPort: 3000 };
+        const provider = new McpCliOAuthProvider('test', 'https://example.com', config);
+
+        // Save client info with matching redirect_uri
+        const clientPath = join(testDir, '.mcp-cli', 'clients', 'test.json');
+        const storedClient = {
+          client_id: 'matching-client',
+          redirect_uris: ['http://localhost:3000/callback'],
+        };
+        writeFileSync(clientPath, JSON.stringify(storedClient));
+
+        // Should return the client since redirect_uris match
+        const info = provider.clientInformation();
+        expect(info?.client_id).toBe('matching-client');
+      });
     });
 
     describe('tokens', () => {

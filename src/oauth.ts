@@ -549,6 +549,7 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
 
   /**
    * Load client information from config or file
+   * Validates that stored redirect_uris match current redirectUrl
    */
   clientInformation(): OAuthClientInformationMixed | undefined {
     // First check if client ID is configured statically
@@ -563,7 +564,24 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
     }
 
     // Otherwise, try to load from dynamic registration
-    return readJsonFile<OAuthClientInformationMixed>(this.paths.client);
+    const stored = readJsonFile<OAuthClientInformationMixed & { redirect_uris?: string[] }>(this.paths.client);
+
+    // Validate stored redirect_uris match current redirectUrl
+    // If they don't match, the server will reject with "Invalid redirect_uri"
+    if (stored?.redirect_uris && stored.redirect_uris.length > 0) {
+      const currentRedirectUrl = this.redirectUrl ? String(this.redirectUrl) : undefined;
+      const storedHasCurrentUrl = currentRedirectUrl && stored.redirect_uris.includes(currentRedirectUrl);
+
+      if (!storedHasCurrentUrl) {
+        debug(
+          `Stored client redirect_uris [${stored.redirect_uris.join(', ')}] don't match current [${currentRedirectUrl}] - invalidating client registration`,
+        );
+        this.invalidateCredentials('client');
+        return undefined;
+      }
+    }
+
+    return stored;
   }
 
   /**
@@ -606,8 +624,8 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
 
   /**
    * Redirect to authorization URL
-   * Starts the callback server FIRST (with port fallback), then opens the browser
-   * This prevents the race condition where the browser redirects before the server is ready
+   * If callback server was pre-started, reuses it; otherwise starts one with port fallback
+   * Opens the browser only after the server is ready
    */
   redirectToAuthorization(authorizationUrl: URL): void {
     // If interactive auth is disabled, don't start server or open browser
@@ -618,32 +636,40 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
       return;
     }
 
-    const portsToTry = this.getPortsToTry();
+    // Helper to open browser after server is ready
+    const openBrowserWithUrl = () => {
+      // Update authorization URL with actual redirect_uri (may have changed due to port fallback)
+      const actualRedirectUri = this.redirectUrl;
+      if (actualRedirectUri) {
+        authorizationUrl.searchParams.set('redirect_uri', String(actualRedirectUri));
+      }
 
-    // Start the callback server BEFORE opening the browser
-    // This is critical to avoid race conditions
-    // Store the promise so waitForCallback can properly await it
+      // Now open the browser
+      console.error(`\nAuthorizing ${this.serverName}...`);
+      console.error(
+        `If the browser doesn't open, visit: ${authorizationUrl.toString()}`,
+      );
+      openBrowser(authorizationUrl.toString()).catch(() => {
+        // Error already logged in openBrowser
+      });
+    };
+
+    // If callback server was already pre-started, just open the browser
+    if (this.callbackServerState && this.actualCallbackPort !== null) {
+      debug(`Reusing pre-started callback server on port ${this.actualCallbackPort} for ${this.serverName}`);
+      openBrowserWithUrl();
+      return;
+    }
+
+    // Otherwise, start the callback server BEFORE opening the browser
+    const portsToTry = this.getPortsToTry();
     this.callbackServerStarting = startCallbackServerWithFallback(portsToTry)
       .then(({ state, actualPort }) => {
         this.callbackServerState = state;
         this.actualCallbackPort = actualPort;
         this.callbackServerStarting = null;
         debug(`Callback server ready for ${this.serverName} on port ${actualPort}`);
-
-        // Update authorization URL with actual redirect_uri
-        const actualRedirectUri = this.redirectUrl;
-        if (actualRedirectUri) {
-          authorizationUrl.searchParams.set('redirect_uri', String(actualRedirectUri));
-        }
-
-        // Now open the browser
-        console.error(`\nAuthorizing ${this.serverName}...`);
-        console.error(
-          `If the browser doesn't open, visit: ${authorizationUrl.toString()}`,
-        );
-        openBrowser(authorizationUrl.toString()).catch(() => {
-          // Error already logged in openBrowser
-        });
+        openBrowserWithUrl();
       })
       .catch((error) => {
         this.callbackServerStarting = null;
