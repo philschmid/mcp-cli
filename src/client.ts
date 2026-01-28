@@ -27,7 +27,7 @@ import {
   getDaemonConnection,
 } from './daemon-client.js';
 import { formatCliError, oauthFlowError } from './errors.js';
-import { McpCliOAuthProvider } from './oauth.js';
+import { McpCliOAuthProvider } from './oauth/index.js';
 import { VERSION } from './version.js';
 
 // Re-export config utilities for convenience

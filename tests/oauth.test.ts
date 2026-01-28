@@ -6,7 +6,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { McpCliOAuthProvider, type OAuthConfig } from '../src/oauth';
+import { McpCliOAuthProvider, type OAuthConfig } from '../src/oauth/index';
 
 describe('oauth', () => {
   // Use a unique temp directory for each test run to avoid conflicts
