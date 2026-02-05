@@ -11,6 +11,7 @@ import {
   getServerConfig,
   listServerNames,
   isHttpServer,
+  isSseServer,
   isStdioServer,
 } from '../src/config';
 
@@ -40,6 +41,25 @@ describe('config', () => {
       const config = await loadConfig(configPath);
       expect(config.mcpServers.test).toBeDefined();
       expect((config.mcpServers.test as any).command).toBe('echo');
+    });
+
+    test('loads server with sse transport', async () => {
+      const configPath = join(tempDir, 'sse_config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            sse: {
+              url: 'http://localhost:3000/sse',
+              type: 'sse',
+            },
+          },
+        }),
+      );
+
+      const config = await loadConfig(configPath);
+      expect(config.mcpServers.sse).toBeDefined();
+      expect((config.mcpServers.sse as any).type).toBe('sse');
     });
 
     test('throws on missing config file', async () => {
@@ -233,6 +253,17 @@ describe('config', () => {
     test('isHttpServer identifies HTTP config', () => {
       expect(isHttpServer({ url: 'https://example.com' })).toBe(true);
       expect(isHttpServer({ command: 'echo' })).toBe(false);
+      expect(isHttpServer({ url: 'https://example.com', type: 'sse' })).toBe(
+        false,
+      );
+    });
+
+    test('isSseServer identifies SSE config', () => {
+      expect(isSseServer({ url: 'https://example.com', type: 'sse' })).toBe(
+        true,
+      );
+      expect(isSseServer({ url: 'https://example.com' })).toBe(false);
+      expect(isSseServer({ command: 'echo' })).toBe(false);
     });
 
     test('isStdioServer identifies stdio config', () => {

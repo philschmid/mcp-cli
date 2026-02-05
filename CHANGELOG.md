@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1] - 2026-02-03
+
+### Added
+
+- **SSE Transport Support** - Support for Server-Sent Events transport protocol
+  - Requires `type: "sse"` in server config
+  - Enables connection to MCP servers using SSE (e.g. LangChain, remote servers)
+
 ## [0.3.0] - 2026-01-22
 
 ### Added

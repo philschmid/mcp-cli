@@ -299,6 +299,24 @@ The CLI uses `mcp_servers.json`, compatible with Claude Desktop, Gemini or VS Co
 }
 ```
 
+### SSE Transport (Legacy)
+
+For servers using the deprecated SSE transport protocol, add `"type": "sse"` to the configuration:
+
+```json
+{
+  "mcpServers": {
+    "legacy-server": {
+      "url": "http://localhost:8000",
+      "type": "sse"
+    }
+  }
+}
+```
+
+> [!NOTE]
+> SSE transport is deprecated. New servers should use Streamable HTTP transport.
+
 **Environment Variable Substitution:** Use `${VAR_NAME}` syntax anywhere in the config. Values are substituted at load time. By default, missing environment variables cause an error with a clear message. Set `MCP_STRICT_ENV=false` to use empty values instead (with a warning).
 
 ### Tool Filtering

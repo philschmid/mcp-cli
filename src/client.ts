@@ -3,12 +3,14 @@
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import {
   type HttpServerConfig,
   type ServerConfig,
+  type SseServerConfig,
   type StdioServerConfig,
   debug,
   filterTools,
@@ -18,6 +20,7 @@ import {
   getTimeoutMs,
   isDaemonEnabled,
   isHttpServer,
+  isSseServer,
   isToolAllowed,
 } from './config.js';
 import {
@@ -236,9 +239,14 @@ export async function connectToServer(
       },
     );
 
-    let transport: StdioClientTransport | StreamableHTTPClientTransport;
+    let transport:
+      | StdioClientTransport
+      | StreamableHTTPClientTransport
+      | SSEClientTransport;
 
-    if (isHttpServer(config)) {
+    if (isSseServer(config)) {
+      transport = createSseTransport(config);
+    } else if (isHttpServer(config)) {
       transport = createHttpTransport(config);
     } else {
       transport = createStdioTransport(config);
@@ -269,7 +277,7 @@ export async function connectToServer(
     }
 
     // For successful connections, forward stderr to console
-    if (!isHttpServer(config)) {
+    if (!isHttpServer(config) && !isSseServer(config)) {
       const stderrStream = (transport as StdioClientTransport).stderr;
       if (stderrStream) {
         stderrStream.on('data', (chunk: Buffer) => {
@@ -296,6 +304,24 @@ function createHttpTransport(
   const url = new URL(config.url);
 
   return new StreamableHTTPClientTransport(url, {
+    requestInit: {
+      headers: config.headers,
+    },
+  });
+}
+
+/**
+ * Create SSE transport for remote servers
+ */
+function createSseTransport(config: SseServerConfig): SSEClientTransport {
+  // SSE transport expects the URL to end with /sse
+  let urlStr = config.url;
+  if (!urlStr.endsWith('/sse')) {
+    urlStr = `${urlStr.replace(/\/$/, '')}/sse`;
+  }
+  const url = new URL(urlStr);
+
+  return new SSEClientTransport(url, {
     requestInit: {
       headers: config.headers,
     },
