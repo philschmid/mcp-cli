@@ -42,12 +42,26 @@ export interface StdioServerConfig extends BaseServerConfig {
 }
 
 /**
+ * OAuth configuration for HTTP servers
+ */
+export interface OAuthConfig {
+  grantType?: 'authorization_code' | 'client_credentials';
+  clientId?: string;
+  clientSecret?: string;
+  scope?: string;
+  callbackPort?: number;
+  /** Optional: explicit list of ports to try in order (overrides default fallback) */
+  callbackPorts?: number[];
+}
+
+/**
  * HTTP server configuration (remote)
  */
 export interface HttpServerConfig extends BaseServerConfig {
   url: string;
   headers?: Record<string, string>;
   timeout?: number;
+  oauth?: OAuthConfig;
 }
 
 export type ServerConfig = StdioServerConfig | HttpServerConfig;
@@ -493,6 +507,68 @@ export async function loadConfig(
           suggestion: `Remove one of "command" or "url"`,
         }),
       );
+    }
+
+    // Validate OAuth config if present (only for HTTP servers)
+    if (hasUrl && 'oauth' in serverConfig && serverConfig.oauth) {
+      const oauth = serverConfig.oauth as Record<string, unknown>;
+
+      // Validate grantType if specified
+      if (
+        oauth.grantType &&
+        oauth.grantType !== 'authorization_code' &&
+        oauth.grantType !== 'client_credentials'
+      ) {
+        throw new Error(
+          formatCliError({
+            code: ErrorCode.CLIENT_ERROR,
+            type: 'CONFIG_INVALID_OAUTH',
+            message: `Invalid OAuth grantType for server "${serverName}"`,
+            details: `Got "${oauth.grantType}", expected "authorization_code" or "client_credentials"`,
+            suggestion: `Use "authorization_code" for interactive login or "client_credentials" for machine-to-machine auth`,
+          }),
+        );
+      }
+
+      // client_credentials requires clientId and clientSecret
+      if (oauth.grantType === 'client_credentials') {
+        if (!oauth.clientId) {
+          throw new Error(
+            formatCliError({
+              code: ErrorCode.CLIENT_ERROR,
+              type: 'CONFIG_INVALID_OAUTH',
+              message: `OAuth client_credentials flow requires clientId for server "${serverName}"`,
+              suggestion: `Add "clientId" to the oauth config, e.g., "clientId": "\${MCP_CLIENT_ID}"`,
+            }),
+          );
+        }
+        if (!oauth.clientSecret) {
+          throw new Error(
+            formatCliError({
+              code: ErrorCode.CLIENT_ERROR,
+              type: 'CONFIG_INVALID_OAUTH',
+              message: `OAuth client_credentials flow requires clientSecret for server "${serverName}"`,
+              suggestion: `Add "clientSecret" to the oauth config, e.g., "clientSecret": "\${MCP_CLIENT_SECRET}"`,
+            }),
+          );
+        }
+      }
+
+      // Validate callbackPort if specified
+      if (oauth.callbackPort !== undefined) {
+        const port = Number(oauth.callbackPort);
+        if (Number.isNaN(port) || port < 1 || port > 65535) {
+          throw new Error(
+            formatCliError({
+              code: ErrorCode.CLIENT_ERROR,
+              type: 'CONFIG_INVALID_OAUTH',
+              message: `Invalid callbackPort for server "${serverName}"`,
+              details: 'Port must be a number between 1 and 65535',
+              suggestion: `Use a valid port number, e.g., "callbackPort": 8095`,
+            }),
+          );
+        }
+      }
     }
   }
 
