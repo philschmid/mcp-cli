@@ -22,8 +22,8 @@
 
 - **3-Subcommand Architecture** - `info`, `grep`, `call`
   - Flexible format support: `server tool` and `server/tool`
-  - `call` always outputs raw JSON (for piping/scripting)
-  - `info`/`grep` always output human-readable format
+  - `call` outputs raw text content (CLI-friendly, pipe to grep/head/etc.)
+  - `info`/`grep` output human-readable format
 
 - **Improved Error Messages for LLMs**
   - AMBIGUOUS_COMMAND: Shows both `call` and `info` options

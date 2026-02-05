@@ -241,6 +241,28 @@ describe('CLI Integration Tests', () => {
       // We just verify it doesn't crash
       expect(typeof result.exitCode).toBe('number');
     });
+
+    test('outputs raw text content, not MCP envelope (issue #25)', async () => {
+      // This test ensures the call command outputs raw text content
+      // instead of the full MCP protocol envelope like:
+      // { "content": [{ "type": "text", "text": "..." }] }
+      const result = await runCli([
+        'call',
+        'filesystem',
+        'read_file',
+        JSON.stringify({ path: testFilePath }),
+      ]);
+
+      expect(result.exitCode).toBe(0);
+
+      // Output should be the raw file content
+      expect(result.stdout).toContain('Hello from test file!');
+
+      // Output should NOT contain MCP envelope structure
+      expect(result.stdout).not.toContain('"content"');
+      expect(result.stdout).not.toContain('"type"');
+      expect(result.stdout).not.toContain('"text"');
+    });
   });
 
   describe('error handling', () => {

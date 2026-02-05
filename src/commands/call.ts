@@ -29,7 +29,7 @@ import {
   toolExecutionError,
   toolNotFoundError,
 } from '../errors.js';
-import { formatJson } from '../output.js';
+import { formatJson, formatToolResult } from '../output.js';
 
 export interface CallOptions {
   target: string; // "server/tool"
@@ -161,8 +161,9 @@ export async function callCommand(options: CallOptions): Promise<void> {
   try {
     const result = await connection.callTool(toolName, args);
 
-    // Always output raw JSON for programmatic use
-    console.log(formatJson(result));
+    // Extract text content from MCP response for CLI-friendly output
+    // Uses formatToolResult which extracts text from MCP content array
+    console.log(formatToolResult(result));
   } catch (error) {
     // Try to get available tools for better error message
     let availableTools: string[] | undefined;

@@ -52,8 +52,8 @@ cat args.json | mcp-cli call filesystem read_file
 # Search for tools
 mcp-cli grep "*file*"
 
-# Extract text from result
-mcp-cli call filesystem read_file '{"path": "./file"}' | jq -r '.content[0].text'
+# Output is raw text (pipe-friendly)
+mcp-cli call filesystem read_file '{"path": "./file"}' | head -10
 ```
 
 ## Advanced Chaining
@@ -61,31 +61,29 @@ mcp-cli call filesystem read_file '{"path": "./file"}' | jq -r '.content[0].text
 ```bash
 # Chain: search files → read first match
 mcp-cli call filesystem search_files '{"path": ".", "pattern": "*.md"}' \
-  | jq -r '.content[0].text | split("\n")[0]' \
+  | head -1 \
   | xargs -I {} mcp-cli call filesystem read_file '{"path": "{}"}'
 
 # Loop: process multiple files
 mcp-cli call filesystem list_directory '{"path": "./src"}' \
-  | jq -r '.content[0].text | split("\n")[]' \
   | while read f; do mcp-cli call filesystem read_file "{\"path\": \"$f\"}"; done
 
 # Conditional: check before reading
 mcp-cli call filesystem list_directory '{"path": "."}' \
-  | jq -e '.content[0].text | contains("README")' \
+  | grep -q "README" \
   && mcp-cli call filesystem read_file '{"path": "./README.md"}'
 
 # Multi-server aggregation
 {
   mcp-cli call github search_repositories '{"query": "mcp", "per_page": 3}'
   mcp-cli call filesystem list_directory '{"path": "."}'
-} | jq -s '.'
+}
 
 # Save to file
-mcp-cli call github get_file_contents '{"owner": "x", "repo": "y", "path": "z"}' \
-  | jq -r '.content[0].text' > output.txt
+mcp-cli call github get_file_contents '{"owner": "x", "repo": "y", "path": "z"}' > output.txt
 ```
 
-**jq tips:** `-r` raw output, `-e` exit 1 if false, `-s` slurp multiple inputs
+**Note:** `call` outputs raw text content directly (no jq needed for text extraction)
 
 ## Options
 
