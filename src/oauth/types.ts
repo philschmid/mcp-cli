@@ -36,5 +36,5 @@ export interface CallbackServerState {
 // Default callback port for OAuth redirect
 export const DEFAULT_CALLBACK_PORT = 8095;
 
-// Default port fallback order: 80 (standard), common alternatives, then random
-export const DEFAULT_PORT_FALLBACK_ORDER = [80, 8080, 3000, 8095, 0]; // 0 = random port
+// Default port: random (0) - OS assigns unique port for each server, avoiding conflicts
+export const DEFAULT_PORT_FALLBACK_ORDER = [0];

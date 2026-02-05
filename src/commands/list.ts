@@ -3,6 +3,7 @@
  */
 
 import {
+  AuthRequiredError,
   type McpConnection,
   type ToolInfo,
   debug,
@@ -62,25 +63,33 @@ async function processWithConcurrency<T, R>(
 
 /**
  * Fetch tools from a single server (uses daemon if enabled)
- * When listing multiple servers, interactive OAuth is disabled to prevent chaos
+ * Never opens browser - CLI is used by AI agents, returns auth URL instead
  */
 async function fetchServerTools(
   serverName: string,
   config: McpServersConfig,
-  allowInteractiveAuth = true,
 ): Promise<ServerWithTools> {
   let connection: McpConnection | null = null;
   try {
     const serverConfig = getServerConfig(config, serverName);
-    connection = await getConnection(serverName, serverConfig, {
-      allowInteractiveAuth,
-    });
+    connection = await getConnection(serverName, serverConfig);
 
     const tools = await connection.listTools();
     const instructions = await connection.getInstructions();
     debug(`${serverName}: loaded ${tools.length} tools`);
     return { name: serverName, tools, instructions };
   } catch (error) {
+    // AuthRequiredError is caught and returned as a response, not retried
+    // This ensures the callback server stays running and the auth URL is shown
+    if (error instanceof AuthRequiredError) {
+      debug(`${serverName}: auth required - ${error.message}`);
+      return {
+        name: serverName,
+        tools: [],
+        error: error.message,
+      };
+    }
+
     const errorMsg = (error as Error).message;
     debug(`${serverName}: connection failed - ${errorMsg}`);
     return {
@@ -123,11 +132,9 @@ export async function listCommand(options: ListOptions): Promise<void> {
   );
 
   // Process servers in parallel with concurrency limit
-  // Disable interactive OAuth when listing multiple servers to prevent chaos
-  const allowInteractiveAuth = serverNames.length === 1;
   const servers = await processWithConcurrency(
     serverNames,
-    (name) => fetchServerTools(name, config, allowInteractiveAuth),
+    (name) => fetchServerTools(name, config),
     concurrencyLimit,
   );
 

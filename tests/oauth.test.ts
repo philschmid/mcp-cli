@@ -391,19 +391,17 @@ describe('oauth', () => {
         const provider = new McpCliOAuthProvider('test', 'https://example.com', config);
 
         const ports = provider.getPortsToTry();
-        // Default order: 80, 8080, 3000, 8095, 0 (random)
-        expect(ports).toEqual([80, 8080, 3000, 8095, 0]);
+        // Default: always use random port (0) - OS assigns unique port to avoid conflicts
+        expect(ports).toEqual([0]);
       });
 
-      test('puts configured callbackPort first in fallback order', () => {
+      test('puts configured callbackPort first with random fallback', () => {
         const config: OAuthConfig = { callbackPort: 9000 };
         const provider = new McpCliOAuthProvider('test', 'https://example.com', config);
 
         const ports = provider.getPortsToTry();
-        expect(ports[0]).toBe(9000);
-        // Rest of default order follows (excluding duplicates)
-        expect(ports).toContain(80);
-        expect(ports).toContain(8080);
+        // Configured port first, then random (0) as fallback
+        expect(ports).toEqual([9000, 0]);
       });
 
       test('uses callbackPorts array when configured', () => {

@@ -45,8 +45,8 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
   // Actual port used by callback server (may differ from configured port due to fallback)
   private actualCallbackPort: number | null = null;
 
-  // Whether interactive auth (browser + callback) is allowed
-  private _allowInteractiveAuth = true;
+  // Captured authorization URL for non-interactive mode
+  private _capturedAuthUrl: string | null = null;
 
   constructor(serverName: string, serverUrl: string, oauthConfig: OAuthConfig) {
     this.serverName = serverName;
@@ -72,7 +72,10 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
       return undefined;
     }
     // Use actual port if server was pre-started, otherwise fall back to configured/default
-    const port = this.actualCallbackPort ?? this.oauthConfig.callbackPort ?? DEFAULT_CALLBACK_PORT;
+    const port =
+      this.actualCallbackPort ??
+      this.oauthConfig.callbackPort ??
+      DEFAULT_CALLBACK_PORT;
     // Omit port from URL when using standard HTTP port 80
     if (port === 80) {
       return 'http://localhost/callback';
@@ -124,13 +127,18 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
     }
 
     // Otherwise, try to load from dynamic registration
-    const stored = readJsonFile<OAuthClientInformationMixed & { redirect_uris?: string[] }>(this.paths.client);
+    const stored = readJsonFile<
+      OAuthClientInformationMixed & { redirect_uris?: string[] }
+    >(this.paths.client);
 
     // Validate stored redirect_uris match current redirectUrl
     // If they don't match, the server will reject with "Invalid redirect_uri"
     if (stored?.redirect_uris && stored.redirect_uris.length > 0) {
-      const currentRedirectUrl = this.redirectUrl ? String(this.redirectUrl) : undefined;
-      const storedHasCurrentUrl = currentRedirectUrl && stored.redirect_uris.includes(currentRedirectUrl);
+      const currentRedirectUrl = this.redirectUrl
+        ? String(this.redirectUrl)
+        : undefined;
+      const storedHasCurrentUrl =
+        currentRedirectUrl && stored.redirect_uris.includes(currentRedirectUrl);
 
       if (!storedHasCurrentUrl) {
         debug(
@@ -168,77 +176,35 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
   }
 
   /**
-   * Set whether interactive auth is allowed
-   * When disabled, redirectToAuthorization will not open browser or start server
+   * Get the captured authorization URL (for non-interactive mode)
    */
-  setAllowInteractiveAuth(allow: boolean): void {
-    this._allowInteractiveAuth = allow;
-  }
-
-  /**
-   * Check if interactive auth was blocked
-   */
-  get interactiveAuthBlocked(): boolean {
-    return !this._allowInteractiveAuth;
+  get capturedAuthUrl(): string | null {
+    return this._capturedAuthUrl;
   }
 
   /**
    * Redirect to authorization URL
-   * If callback server was pre-started, reuses it; otherwise starts one with port fallback
-   * Opens the browser only after the server is ready
+   * Captures auth URL for AI agents - never opens browser
+   * Background callback server is already pre-started
    */
   redirectToAuthorization(authorizationUrl: URL): void {
-    // If interactive auth is disabled, don't start server or open browser
-    if (!this._allowInteractiveAuth) {
-      debug(
-        `Interactive auth disabled for ${this.serverName}, skipping browser redirect`,
+    debug(`Capturing auth URL for ${this.serverName} (non-interactive mode)`);
+
+    // Update auth URL with actual redirect_uri (from pre-started server)
+    const actualRedirectUri = this.redirectUrl;
+    if (actualRedirectUri) {
+      authorizationUrl.searchParams.set(
+        'redirect_uri',
+        String(actualRedirectUri),
       );
-      return;
     }
 
-    // Helper to open browser after server is ready
-    const openBrowserWithUrl = () => {
-      // Update authorization URL with actual redirect_uri (may have changed due to port fallback)
-      const actualRedirectUri = this.redirectUrl;
-      if (actualRedirectUri) {
-        authorizationUrl.searchParams.set('redirect_uri', String(actualRedirectUri));
-      }
+    // Capture the auth URL for inclusion in error message
+    this._capturedAuthUrl = authorizationUrl.toString();
+    debug(`Captured auth URL: ${this._capturedAuthUrl}`);
 
-      // Now open the browser
-      console.error(`\nAuthorizing ${this.serverName}...`);
-      console.error(
-        `If the browser doesn't open, visit: ${authorizationUrl.toString()}`,
-      );
-      openBrowser(authorizationUrl.toString()).catch(() => {
-        // Error already logged in openBrowser
-      });
-    };
-
-    // If callback server was already pre-started, just open the browser
-    if (this.callbackServerState && this.actualCallbackPort !== null) {
-      debug(`Reusing pre-started callback server on port ${this.actualCallbackPort} for ${this.serverName}`);
-      openBrowserWithUrl();
-      return;
-    }
-
-    // Otherwise, start the callback server BEFORE opening the browser
-    const portsToTry = this.getPortsToTry();
-    this.callbackServerStarting = startCallbackServerWithFallback(portsToTry)
-      .then(({ state, actualPort }) => {
-        this.callbackServerState = state;
-        this.actualCallbackPort = actualPort;
-        this.callbackServerStarting = null;
-        debug(`Callback server ready for ${this.serverName} on port ${actualPort}`);
-        openBrowserWithUrl();
-      })
-      .catch((error) => {
-        this.callbackServerStarting = null;
-        console.error(`Failed to start callback server: ${error.message}`);
-        console.error(
-          `Please manually visit: ${authorizationUrl.toString()}`,
-        );
-        throw error;
-      });
+    // Background server is already pre-started (from preStartCallbackServer)
+    // It will continue running for the timeout period (default 5 min)
   }
 
   /**
@@ -254,7 +220,8 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
     if (!this.callbackServerState) {
       // Fallback: start server now if not already started (with port fallback)
       const portsToTry = this.getPortsToTry();
-      const { state, actualPort } = await startCallbackServerWithFallback(portsToTry);
+      const { state, actualPort } =
+        await startCallbackServerWithFallback(portsToTry);
       this.callbackServerState = state;
       this.actualCallbackPort = actualPort;
     }
@@ -269,7 +236,14 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
   }
 
   /**
-   * Clean up the callback server if running
+   * Clean up the callback server if running.
+   *
+   * Production code does NOT call this - the server self-cleans on:
+   * - Success: when authorization code is received
+   * - Error: when OAuth error is returned
+   * - Timeout: after 5 minute timeout expires
+   *
+   * This method exists for tests that start servers without completing OAuth.
    */
   cleanupCallbackServer(): void {
     if (this.callbackServerState) {
@@ -347,7 +321,11 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
    * Get the callback port for this provider
    */
   getCallbackPort(): number {
-    return this.actualCallbackPort ?? this.oauthConfig.callbackPort ?? DEFAULT_CALLBACK_PORT;
+    return (
+      this.actualCallbackPort ??
+      this.oauthConfig.callbackPort ??
+      DEFAULT_CALLBACK_PORT
+    );
   }
 
   /**
@@ -359,7 +337,10 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
     const ports: number[] = [];
 
     // If explicit callbackPorts array is configured, use it
-    if (this.oauthConfig.callbackPorts && this.oauthConfig.callbackPorts.length > 0) {
+    if (
+      this.oauthConfig.callbackPorts &&
+      this.oauthConfig.callbackPorts.length > 0
+    ) {
       return [...this.oauthConfig.callbackPorts];
     }
 
@@ -395,17 +376,25 @@ export class McpCliOAuthProvider implements OAuthClientProvider {
     }
     if (this.callbackServerStarting) {
       await this.callbackServerStarting;
-      return this.actualCallbackPort!;
+      // After awaiting, actualCallbackPort is guaranteed to be set
+      if (this.actualCallbackPort !== null) {
+        return this.actualCallbackPort;
+      }
     }
 
     const portsToTry = this.getPortsToTry();
-    debug(`Pre-starting callback server for ${this.serverName}, trying ports: ${portsToTry.join(', ')}`);
+    debug(
+      `Pre-starting callback server for ${this.serverName}, trying ports: ${portsToTry.join(', ')}`,
+    );
 
-    const { state, actualPort } = await startCallbackServerWithFallback(portsToTry);
+    const { state, actualPort } =
+      await startCallbackServerWithFallback(portsToTry);
     this.callbackServerState = state;
     this.actualCallbackPort = actualPort;
 
-    debug(`Callback server pre-started on port ${actualPort} for ${this.serverName}`);
+    debug(
+      `Callback server pre-started on port ${actualPort} for ${this.serverName}`,
+    );
     return actualPort;
   }
 }

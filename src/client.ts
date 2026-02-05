@@ -52,24 +52,27 @@ export interface McpConnection {
   isDaemon: boolean;
 }
 
-export interface ConnectOptions {
-  /**
-   * Allow interactive OAuth flow (browser opens, user authorizes)
-   * When false, throws an error if authentication is required
-   * Default: true
-   */
-  allowInteractiveAuth?: boolean;
-}
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export type ConnectOptions = Record<string, never>;
 
 /**
  * Error thrown when authentication is required but interactive auth is disabled
  */
 export class AuthRequiredError extends Error {
-  constructor(serverName: string) {
-    super(
-      `Server "${serverName}" requires authentication. Run 'mcp-cli ${serverName}' to authenticate.`,
-    );
+  public readonly serverName: string;
+  public readonly authUrl: string | undefined;
+
+  constructor(serverName: string, authUrl?: string) {
+    const message = authUrl
+      ? `[AUTH REQUIRED] ${serverName}
+  Authenticate at: ${authUrl}
+  Callback server running in background (5 min timeout).
+  After authenticating, confirm "done" and retry this command.`
+      : `Server "${serverName}" requires authentication. Run 'mcp-cli info ${serverName}' to start authentication.`;
+    super(message);
     this.name = 'AuthRequiredError';
+    this.serverName = serverName;
+    this.authUrl = authUrl;
   }
 }
 
@@ -119,6 +122,11 @@ function getRetryConfig(): RetryConfig {
  * Uses error codes when available, falls back to message matching
  */
 export function isTransientError(error: Error): boolean {
+  // AuthRequiredError should never be retried - it indicates callback server is running
+  if (error.name === 'AuthRequiredError') {
+    return false;
+  }
+
   // Check error code first (more reliable than message matching)
   const nodeError = error as NodeJS.ErrnoException;
   if (nodeError.code) {
@@ -248,7 +256,6 @@ export async function connectToServer(
   config: ServerConfig,
   options: ConnectOptions = {},
 ): Promise<ConnectedClient> {
-  const { allowInteractiveAuth = true } = options;
   // Collect stderr for better error messages
   const stderrChunks: string[] = [];
 
@@ -271,17 +278,19 @@ export async function connectToServer(
       transport = result.transport;
       authProvider = result.authProvider;
 
-      // Configure whether interactive auth is allowed
-      authProvider.setAllowInteractiveAuth(allowInteractiveAuth);
-
       // Pre-start callback server for authorization_code flow to determine actual port
       // This ensures the redirect_uri in the authorization request uses the correct port
       const oauthConfig = (config as HttpServerConfig).oauth;
-      if (!oauthConfig?.grantType || oauthConfig.grantType === 'authorization_code') {
+      if (
+        !oauthConfig?.grantType ||
+        oauthConfig.grantType === 'authorization_code'
+      ) {
         try {
           await authProvider.preStartCallbackServer();
         } catch (error) {
-          debug(`Failed to pre-start callback server: ${(error as Error).message}`);
+          debug(
+            `Failed to pre-start callback server: ${(error as Error).message}`,
+          );
           // Continue anyway - server will start during redirectToAuthorization
         }
       }
@@ -304,75 +313,24 @@ export async function connectToServer(
     try {
       await client.connect(transport);
     } catch (error) {
-      // Handle OAuth authorization required
       if (isOAuthNeeded(error as Error) && authProvider) {
         debug(`OAuth authorization required for ${serverName}`);
 
-        // If interactive auth was blocked by the provider, throw a clear error
-        if (authProvider.interactiveAuthBlocked) {
-          authProvider.cleanupCallbackServer();
-          throw new AuthRequiredError(serverName);
-        }
-
-        // For authorization_code flow, wait for callback
-        const oauthConfig = (config as HttpServerConfig).oauth;
-        if (
-          !oauthConfig?.grantType ||
-          oauthConfig.grantType === 'authorization_code'
-        ) {
-          try {
-            console.error('Waiting for OAuth authorization...');
-
-            // Wait for the callback server that was started by redirectToAuthorization
-            const { code } = await authProvider.waitForCallback();
-            debug('Authorization code received, completing OAuth flow');
-
-            // Complete the OAuth flow with the authorization code
-            await (transport as StreamableHTTPClientTransport).finishAuth(code);
-
-            // Create new client and transport for authenticated connection
-            // (original transport is in started state and can't be reused)
-            debug('Creating new connection with authenticated tokens');
-            const newClient = new Client(
-              { name: 'mcp-cli', version: VERSION },
-              { capabilities: {} },
-            );
-            const newResult = createHttpTransport(serverName, config as HttpServerConfig);
-            await newClient.connect(newResult.transport);
-
-            return {
-              client: newClient,
-              close: async () => {
-                await newClient.close();
-              },
-            };
-          } catch (oauthError) {
-            throw new Error(
-              formatCliError(
-                oauthFlowError(serverName, (oauthError as Error).message),
-              ),
-            );
-          }
-        } else {
-          // client_credentials should not need interactive flow
-          throw new Error(
-            formatCliError(
-              oauthFlowError(
-                serverName,
-                'client_credentials authentication failed - check clientId and clientSecret',
-              ),
-            ),
-          );
-        }
-      } else {
-        // Enhance error with captured stderr
-        const stderrOutput = stderrChunks.join('').trim();
-        if (stderrOutput) {
-          const err = error as Error;
-          err.message = `${err.message}\n\nServer stderr:\n${stderrOutput}`;
-        }
-        throw error;
+        // Always throw AuthRequiredError with auth URL - CLI is for AI agents
+        // Callback server continues running in background for 5 min
+        throw new AuthRequiredError(
+          serverName,
+          authProvider.capturedAuthUrl ?? undefined,
+        );
       }
+
+      // Enhance error with captured stderr
+      const stderrOutput = stderrChunks.join('').trim();
+      if (stderrOutput) {
+        const err = error as Error;
+        err.message = `${err.message}\n\nServer stderr:\n${stderrOutput}`;
+      }
+      throw error;
     }
 
     // For successful connections, forward stderr to console

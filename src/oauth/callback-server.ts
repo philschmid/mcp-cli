@@ -214,11 +214,14 @@ export function startCallbackServer(
       debug(
         `OAuth callback server listening on http://localhost:${port}/callback`,
       );
-      resolveStart({
-        server: server!,
-        promise: callbackPromise,
-        cleanup,
-      });
+      const httpServer = server;
+      if (httpServer) {
+        resolveStart({
+          server: httpServer,
+          promise: callbackPromise,
+          cleanup,
+        });
+      }
     });
   });
 }
@@ -236,11 +239,14 @@ export async function startCallbackServerWithFallback(
 
   for (const port of portsToTry) {
     try {
-      debug(`Trying to start callback server on port ${port === 0 ? 'random' : port}`);
+      debug(
+        `Trying to start callback server on port ${port === 0 ? 'random' : port}`,
+      );
       const state = await startCallbackServer(port, timeoutMs);
       // Get the actual port (important when port was 0 for random)
       const address = state.server.address();
-      const actualPort = typeof address === 'object' && address ? address.port : port;
+      const actualPort =
+        typeof address === 'object' && address ? address.port : port;
       debug(`Callback server started on port ${actualPort}`);
       return { state, actualPort };
     } catch (error) {

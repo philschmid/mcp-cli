@@ -337,6 +337,141 @@ Restrict which tools are available from a server using `allowedTools` and `disab
 "disabledTools": ["delete_file"]
 ```
 
+### OAuth Authentication
+
+For HTTP MCP servers that require OAuth (like Notion, GitHub, etc.), the CLI handles authentication automatically:
+
+```mermaid
+sequenceDiagram
+    participant AI as AI Agent
+    participant CLI as mcp-cli
+    participant Server as Callback Server
+    participant User as User
+    AI->>CLI: mcp-cli
+    CLI->>CLI: Detect some servers need auth
+    CLI->>Server: Spawn background callback server
+    CLI-->>AI: List working servers + auth URL for others
+    AI->>User: "Please authenticate via this link"
+    User->>Server: Completes OAuth in browser
+    Server->>Server: Saves tokens to ~/.mcp-cli/tokens/
+    User->>AI: "Done"
+    AI->>CLI: mcp-cli (retry)
+    CLI-->>AI: All servers now listed
+```
+
+**Configuration:**
+
+Most OAuth-enabled servers work with just a URL - the CLI handles dynamic client registration and PKCE automatically:
+
+```json
+{
+  "mcpServers": {
+    "notion": {
+      "url": "https://mcp.notion.com/mcp"
+    }
+  }
+}
+```
+
+**OAuth Configuration Options:**
+
+For servers requiring custom OAuth settings, use the `oauth` object:
+
+```json
+{
+  "mcpServers": {
+    "my-server": {
+      "url": "https://api.example.com/mcp",
+      "oauth": {
+        "callbackPort": 8095,
+        "clientId": "your-client-id",
+        "clientSecret": "your-client-secret",
+        "scope": "read write",
+        "grantType": "authorization_code"
+      }
+    }
+  }
+}
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `callbackPort` | Port for OAuth callback server | Random |
+| `clientId` | Pre-registered OAuth client ID | (dynamic registration) |
+| `clientSecret` | OAuth client secret (for confidential clients) | (none) |
+| `scope` | OAuth scopes to request | (none) |
+| `grantType` | `authorization_code` or `client_credentials` | `authorization_code` |
+
+**Examples by scenario:**
+
+1. **Public server with dynamic registration** (most common):
+```json
+{
+  "notion": { "url": "https://mcp.notion.com/mcp" }
+}
+```
+
+2. **Server with pre-registered public client:**
+```json
+{
+  "github": {
+    "url": "https://mcp.github.com/mcp",
+    "oauth": { "clientId": "abc123" }
+  }
+}
+```
+
+3. **Confidential client (client_credentials):**
+```json
+{
+  "internal-api": {
+    "url": "https://api.internal.com/mcp",
+    "oauth": {
+      "clientId": "service-account",
+      "clientSecret": "secret-key",
+      "grantType": "client_credentials"
+    }
+  }
+}
+```
+
+**Token Storage:**
+
+Tokens are persisted in `~/.mcp-cli/` with secure file permissions (0600):
+
+```
+~/.mcp-cli/
+├── tokens/server-name.json    # Access/refresh tokens
+├── clients/server-name.json   # Dynamic client registration
+└── verifiers/server-name.txt  # PKCE verifiers (temporary)
+```
+
+**Clearing cached tokens:**
+
+```bash
+rm ~/.mcp-cli/tokens/notion.json  # Re-authenticate on next call
+rm -rf ~/.mcp-cli/                # Clear all OAuth data
+```
+
+**For AI Agents (non-interactive mode):**
+
+When listing multiple servers, working servers show their tools while auth-required servers display an actionable auth URL:
+
+```
+deepwiki
+  • read_wiki_structure
+  • read_wiki_contents
+  • ask_question
+
+notion
+  • <error: [AUTH REQUIRED] notion
+  Authenticate at: https://mcp.notion.com/authorize?...
+  Callback server running in background (5 min timeout).
+  After authenticating, confirm "done" and retry this command.>
+```
+
+The callback server stays running in the background. After the user authenticates and confirms, retry the command to see all servers.
+
 ### Config Resolution
 
 The CLI searches for configuration in this order:
@@ -360,6 +495,7 @@ The CLI searches for configuration in this order:
 | `MCP_STRICT_ENV` | Error on missing `${VAR}` in config | `true` |
 | `MCP_NO_DAEMON` | Disable connection caching (force fresh connections) | `false` |
 | `MCP_DAEMON_TIMEOUT` | Idle timeout for cached connections (seconds) | `60` |
+| `MCP_CLI_HOME` | Override OAuth storage directory (default: `$HOME`) | (none) |
 
 ## Using with AI Agents
 
