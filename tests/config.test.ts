@@ -84,6 +84,49 @@ describe('config', () => {
       delete process.env.TEST_MCP_TOKEN;
     });
 
+    test('substitutes environment variables with default values', async () => {
+      const configPath = join(tempDir, 'env_defaults.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              command: 'echo',
+              args: ['${MISSING_VAR:-default_value}'],
+              env: { KEY: '${ANOTHER_VAR:-fallback}' },
+            },
+          },
+        }),
+      );
+
+      const config = await loadConfig(configPath);
+      const server = config.mcpServers.test as any;
+      expect(server.args[0]).toBe('default_value');
+      expect(server.env.KEY).toBe('fallback');
+    });
+
+    test('prefers existing env var over default value', async () => {
+      process.env.EXISTING_VAR = 'real_value';
+      const configPath = join(tempDir, 'env_defaults_override.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              command: 'echo',
+              args: ['${EXISTING_VAR:-default_value}'],
+            },
+          },
+        }),
+      );
+
+      const config = await loadConfig(configPath);
+      const server = config.mcpServers.test as any;
+      expect(server.args[0]).toBe('real_value');
+
+      delete process.env.EXISTING_VAR;
+    });
+
     test('handles missing env vars gracefully with MCP_STRICT_ENV=false', async () => {
       // Set non-strict mode to allow missing env vars with warning
       process.env.MCP_STRICT_ENV = 'false';

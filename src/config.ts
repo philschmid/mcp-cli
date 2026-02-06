@@ -325,14 +325,20 @@ function isStrictEnvMode(): boolean {
 function substituteEnvVars(value: string): string {
   const missingVars: string[] = [];
 
-  const result = value.replace(/\$\{([^}]+)\}/g, (match, varName) => {
-    const envValue = process.env[varName];
-    if (envValue === undefined) {
-      missingVars.push(varName);
-      return '';
-    }
-    return envValue;
-  });
+  const result = value.replace(
+    /\$\{([^}:]+)(?::-([^}]+))?\}/g,
+    (match, varName, defaultValue) => {
+      const envValue = process.env[varName];
+      if (envValue === undefined) {
+        if (defaultValue !== undefined) {
+          return defaultValue;
+        }
+        missingVars.push(varName);
+        return '';
+      }
+      return envValue;
+    },
+  );
 
   if (missingVars.length > 0) {
     const varList = missingVars.map((v) => `\${${v}}`).join(', ');
