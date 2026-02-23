@@ -496,14 +496,17 @@ export async function loadConfig(
     }
   }
 
-  // Substitute environment variables
-  config = substituteEnvVarsInObject(config);
+  // Environment variable substitution is deferred to getServerConfig()
+  // so that warnings/errors only appear for the server being accessed.
 
   return config;
 }
 
 /**
- * Get a specific server config by name
+ * Get a specific server config by name.
+ *
+ * Environment variables are substituted lazily here so that missing-var
+ * warnings are scoped to the server being queried (fixes #20).
  */
 export function getServerConfig(
   config: McpServersConfig,
@@ -514,7 +517,7 @@ export function getServerConfig(
     const available = Object.keys(config.mcpServers);
     throw new Error(formatCliError(serverNotFoundError(serverName, available)));
   }
-  return server;
+  return substituteEnvVarsInObject(server);
 }
 
 /**
