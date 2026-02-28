@@ -51,6 +51,9 @@ jobs:
       
       - name: Build Linux x64
         run: bun build --compile --minify --target=bun-linux-x64 src/index.ts --outfile dist/mcp-cli-linux-x64
+
+      - name: Build Linux ARM64
+        run: bun build --compile --minify --target=bun-linux-arm64 src/index.ts --outfile dist/mcp-cli-linux-arm64
       
       - name: Build macOS x64
         run: bun build --compile --minify --target=bun-darwin-x64 src/index.ts --outfile dist/mcp-cli-darwin-x64
@@ -95,6 +98,7 @@ jobs:
           generate_release_notes: true
           files: |
             dist/mcp-cli-linux-x64
+            dist/mcp-cli-linux-arm64
             dist/mcp-cli-darwin-x64
             dist/mcp-cli-darwin-arm64
             dist/checksums.txt
