@@ -10,9 +10,9 @@ A lightweight, Bun-based CLI for interacting with [MCP (Model Context Protocol)]
 - 🤖 **Agent-Optimized** - Designed for AI coding agents (Gemini CLI, Claude Code, etc.)
 - 🔌 **Universal** - Supports both stdio and HTTP MCP servers
 - ⚡ **Connection Pooling** - Lazy-spawn daemon keeps connections warm (60s idle timeout)
-- � **Tool Filtering** - Allow/disable specific tools per server via config
+- 🎯 **Tool Filtering** - Allow/disable specific tools per server via config
 - 📋 **Server Instructions** - Display MCP server instructions in output
-- �💡 **Actionable Errors** - Structured error messages with available servers and recovery suggestions
+- 💡 **Actionable Errors** - Structured error messages with available servers and recovery suggestions
 
 ![mcp-cli](./comparison.jpeg)
 
