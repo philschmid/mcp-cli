@@ -24,10 +24,10 @@ A lightweight, Bun-based CLI for interacting with [MCP (Model Context Protocol)]
 curl -fsSL https://raw.githubusercontent.com/philschmid/mcp-cli/main/install.sh | bash
 ```
 
-or 
+or
 
 ```bash
-# requires bun install
+# requires Bun to be installed
 bun install -g https://github.com/philschmid/mcp-cli
 ```
 
