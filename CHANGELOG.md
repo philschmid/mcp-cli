@@ -55,3 +55,9 @@
 
 - **Backward Compatibility Syntax** - `mcp-cli server/tool [args]` now errors with helpful message
 - **`--json` and `--raw` options** - Output format now automatic based on command
+
+## [0.3.1] - 2026-03-05
+
+### Fixed
+
+- Documentation improvements

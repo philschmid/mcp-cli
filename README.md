@@ -10,9 +10,9 @@ A lightweight, Bun-based CLI for interacting with [MCP (Model Context Protocol)]
 - 🤖 **Agent-Optimized** - Designed for AI coding agents (Gemini CLI, Claude Code, etc.)
 - 🔌 **Universal** - Supports both stdio and HTTP MCP servers
 - ⚡ **Connection Pooling** - Lazy-spawn daemon keeps connections warm (60s idle timeout)
-- � **Tool Filtering** - Allow/disable specific tools per server via config
+- 🧰 **Tool Filtering** - Allow/disable specific tools per server via config
 - 📋 **Server Instructions** - Display MCP server instructions in output
-- �💡 **Actionable Errors** - Structured error messages with available servers and recovery suggestions
+- 💡 **Actionable Errors** - Structured error messages with available servers and recovery suggestions
 
 ![mcp-cli](./comparison.jpeg)
 
@@ -24,10 +24,10 @@ A lightweight, Bun-based CLI for interacting with [MCP (Model Context Protocol)]
 curl -fsSL https://raw.githubusercontent.com/philschmid/mcp-cli/main/install.sh | bash
 ```
 
-or 
+or
 
 ```bash
-# requires bun install
+# requires Bun to be installed
 bun install -g https://github.com/philschmid/mcp-cli
 ```
 
@@ -276,7 +276,7 @@ fi
 
 ### Config File Format
 
-The CLI uses `mcp_servers.json`, compatible with Claude Desktop, Gemini or VS Code:
+The CLI uses `mcp_servers.json`, compatible with Claude Desktop, Gemini, or VS Code:
 
 ```json
 {
