@@ -163,7 +163,12 @@ export async function callCommand(options: CallOptions): Promise<void> {
 
     // Extract text content from MCP response for CLI-friendly output
     // Uses formatToolResult which extracts text from MCP content array
-    console.log(formatToolResult(result));
+    const output = `${formatToolResult(result)}\n`;
+    if (!process.stdout.write(output)) {
+      await new Promise<void>((resolve) => {
+        process.stdout.once('drain', resolve);
+      });
+    }
   } catch (error) {
     // Try to get available tools for better error message
     let availableTools: string[] | undefined;
