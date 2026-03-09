@@ -10,9 +10,9 @@ A lightweight, Bun-based CLI for interacting with [MCP (Model Context Protocol)]
 - 🤖 **Agent-Optimized** - Designed for AI coding agents (Gemini CLI, Claude Code, etc.)
 - 🔌 **Universal** - Supports both stdio and HTTP MCP servers
 - ⚡ **Connection Pooling** - Lazy-spawn daemon keeps connections warm (60s idle timeout)
-- � **Tool Filtering** - Allow/disable specific tools per server via config
+- 🧰 **Tool Filtering** - Allow/disable specific tools per server via config
 - 📋 **Server Instructions** - Display MCP server instructions in output
-- �💡 **Actionable Errors** - Structured error messages with available servers and recovery suggestions
+- 💡 **Actionable Errors** - Structured error messages with available servers and recovery suggestions
 
 ![mcp-cli](./comparison.jpeg)
 
@@ -23,6 +23,34 @@ A lightweight, Bun-based CLI for interacting with [MCP (Model Context Protocol)]
 ```bash
 curl -fsSL https://raw.githubusercontent.com/philschmid/mcp-cli/main/install.sh | bash
 ```
+
+> [!NOTE]
+> The installer auto-detects platform/architecture and tries compatible release binaries in order. If no matching asset exists, it prints local build fallback steps.
+> If your target install directory is not writable (for example `/usr/local/bin`), fallback commands may require `sudo`.
+> In environments without `sudo`, set `INSTALL_DIR` to a writable directory (for example `$HOME/.local/bin`).
+> The installer also retries download requests and verifies checksums when entries are available in release assets.
+> Download requests use retry + connect-timeout defaults to reduce transient network failures.
+> If a selected asset has no checksum entry, the installer prints a warning and the checksum source URL for troubleshooting.
+> When checksum verification succeeds, the installer also prints the checksum source URL for traceability.
+> If `checksums.txt` cannot be downloaded, the installer also warns and continues without checksum verification.
+> On successful asset resolution, the installer prints the selected binary name so you can confirm which artifact was used.
+> The installer also prints the resolved download URL for the selected binary.
+> The install banner shows detected platform/architecture and target install location before download starts.
+> When multiple compatible assets are possible, the installer prints the candidate list before attempting downloads.
+> Candidate-list output appears only when more than one compatible asset is available for your platform/architecture.
+> On successful installation, the script also prints the final install path (for example `/usr/local/bin/mcp-cli`).
+> The install banner includes the GitHub Releases source URL used for binary download.
+> After installation, run `mcp-cli --version` to verify the installed binary is on your `PATH`.
+> If the command is not found after install, add your install directory to `PATH` or start a new shell session.
+> Common architecture aliases (for example `arm64`/`aarch64`, `x64`/`amd64`) are handled automatically by the installer.
+> Local build fallback guidance is platform-aware (for example Linux arm64 vs macOS arm64 build outputs).
+> Fallback command examples quote install paths to avoid issues with spaces in directory names.
+> You can override the install target with `INSTALL_DIR=/custom/path` before running the script.
+> The installer requires `curl` to download release assets.
+> If `curl` is missing, the installer prints OS-specific install hints (for example Homebrew on macOS).
+> On Linux, the hint is distro-agnostic and references common package managers (apt, dnf/yum, pacman, apk).
+> If you prefer manual installation, download a release binary from GitHub Releases and place it on your `PATH` as `mcp-cli`.
+> After manual download, ensure the binary is executable (for example: `chmod +x mcp-cli`).
 
 or 
 
