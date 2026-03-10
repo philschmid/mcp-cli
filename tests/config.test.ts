@@ -61,7 +61,7 @@ describe('config', () => {
       await expect(loadConfig(configPath)).rejects.toThrow('mcpServers');
     });
 
-    test('substitutes environment variables', async () => {
+    test('keeps env placeholders in loaded config', async () => {
       process.env.TEST_MCP_TOKEN = 'secret123';
 
       const configPath = join(tempDir, 'env_config.json');
@@ -79,37 +79,12 @@ describe('config', () => {
 
       const config = await loadConfig(configPath);
       const server = config.mcpServers.test as any;
-      expect(server.headers.Authorization).toBe('Bearer secret123');
+      expect(server.headers.Authorization).toBe('Bearer ${TEST_MCP_TOKEN}');
 
       delete process.env.TEST_MCP_TOKEN;
     });
 
-    test('handles missing env vars gracefully with MCP_STRICT_ENV=false', async () => {
-      // Set non-strict mode to allow missing env vars with warning
-      process.env.MCP_STRICT_ENV = 'false';
-
-      const configPath = join(tempDir, 'missing_env.json');
-      await writeFile(
-        configPath,
-        JSON.stringify({
-          mcpServers: {
-            test: {
-              command: 'echo',
-              env: { TOKEN: '${NONEXISTENT_VAR}' },
-            },
-          },
-        })
-      );
-
-      const config = await loadConfig(configPath);
-      const server = config.mcpServers.test as any;
-      expect(server.env.TOKEN).toBe('');
-
-      delete process.env.MCP_STRICT_ENV;
-    });
-
-    test('throws error on missing env vars in strict mode (default)', async () => {
-      // Ensure strict mode is enabled (default)
+    test('does not validate missing env vars during load', async () => {
       delete process.env.MCP_STRICT_ENV;
 
       const configPath = join(tempDir, 'missing_env_strict.json');
@@ -125,7 +100,7 @@ describe('config', () => {
         })
       );
 
-      await expect(loadConfig(configPath)).rejects.toThrow('MISSING_ENV_VAR');
+      await expect(loadConfig(configPath)).resolves.toBeDefined();
     });
 
     test('throws error on empty server config', async () => {
@@ -190,6 +165,46 @@ describe('config', () => {
       const config = await loadConfig(configPath);
       const server = getServerConfig(config, 'server1');
       expect((server as any).command).toBe('cmd1');
+    });
+
+    test('substitutes env vars only for selected server', async () => {
+      process.env.MCP_STRICT_ENV = 'false';
+      process.env.SERVER1_TOKEN = 'abc123';
+
+      const configPath = join(tempDir, 'scoped_env.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            server1: { command: 'cmd1', env: { TOKEN: '${SERVER1_TOKEN}' } },
+            server2: { command: 'cmd2', env: { TOKEN: '${MISSING_TOKEN}' } },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      const server = getServerConfig(config, 'server1') as any;
+      expect(server.env.TOKEN).toBe('abc123');
+
+      delete process.env.SERVER1_TOKEN;
+      delete process.env.MCP_STRICT_ENV;
+    });
+
+    test('throws on missing env vars for selected server in strict mode', async () => {
+      delete process.env.MCP_STRICT_ENV;
+
+      const configPath = join(tempDir, 'strict_env_server.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            target: { command: 'cmd', env: { TOKEN: '${MISSING_TARGET_TOKEN}' } },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      expect(() => getServerConfig(config, 'target')).toThrow('MISSING_ENV_VAR');
     });
 
     test('throws on unknown server', async () => {

@@ -322,7 +322,7 @@ function isStrictEnvMode(): boolean {
  * By default (strict mode), throws an error when referenced env var is not set.
  * Set MCP_STRICT_ENV=false to warn instead of error.
  */
-function substituteEnvVars(value: string): string {
+function substituteEnvVars(value: string, scope?: string): string {
   const missingVars: string[] = [];
 
   const result = value.replace(/\$\{([^}]+)\}/g, (match, varName) => {
@@ -336,7 +336,8 @@ function substituteEnvVars(value: string): string {
 
   if (missingVars.length > 0) {
     const varList = missingVars.map((v) => `\${${v}}`).join(', ');
-    const message = `Missing environment variable${missingVars.length > 1 ? 's' : ''}: ${varList}`;
+    const scopeSuffix = scope ? ` (server: ${scope})` : '';
+    const message = `Missing environment variable${missingVars.length > 1 ? 's' : ''}: ${varList}${scopeSuffix}`;
 
     if (isStrictEnvMode()) {
       throw new Error(
@@ -359,17 +360,17 @@ function substituteEnvVars(value: string): string {
 /**
  * Recursively substitute environment variables in an object
  */
-function substituteEnvVarsInObject<T>(obj: T): T {
+function substituteEnvVarsInObject<T>(obj: T, scope?: string): T {
   if (typeof obj === 'string') {
-    return substituteEnvVars(obj) as T;
+    return substituteEnvVars(obj, scope) as T;
   }
   if (Array.isArray(obj)) {
-    return obj.map(substituteEnvVarsInObject) as T;
+    return obj.map((item) => substituteEnvVarsInObject(item, scope)) as T;
   }
   if (obj && typeof obj === 'object') {
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj)) {
-      result[key] = substituteEnvVarsInObject(value);
+      result[key] = substituteEnvVarsInObject(value, scope);
     }
     return result as T;
   }
@@ -496,9 +497,6 @@ export async function loadConfig(
     }
   }
 
-  // Substitute environment variables
-  config = substituteEnvVarsInObject(config);
-
   return config;
 }
 
@@ -514,7 +512,7 @@ export function getServerConfig(
     const available = Object.keys(config.mcpServers);
     throw new Error(formatCliError(serverNotFoundError(serverName, available)));
   }
-  return server;
+  return substituteEnvVarsInObject(server, serverName);
 }
 
 /**
