@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/philschmid/mcp-cli/main/mcp_servers.schema.json",
+  "title": "mcp-cli server configuration",
+  "type": "object",
+  "required": ["mcpServers"],
+  "additionalProperties": false,
+  "properties": {
+    "mcpServers": {
+      "type": "object",
+      "description": "Map of server name to MCP server configuration",
+      "additionalProperties": {
+        "$ref": "#/$defs/server"
+      }
+    }
+  },
+  "$defs": {
+    "base": {
+      "type": "object",
+      "properties": {
+        "allowedTools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns of allowed tools"
+        },
+        "disabledTools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns of disabled tools (takes precedence over allowedTools)"
+        }
+      }
+    },
+    "stdioServer": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["command"],
+          "additionalProperties": false,
+          "properties": {
+            "command": { "type": "string" },
+            "args": { "type": "array", "items": { "type": "string" } },
+            "env": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "cwd": { "type": "string" },
+            "allowedTools": { "$ref": "#/$defs/base/properties/allowedTools" },
+            "disabledTools": { "$ref": "#/$defs/base/properties/disabledTools" }
+          }
+        }
+      ]
+    },
+    "httpServer": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["url"],
+          "additionalProperties": false,
+          "properties": {
+            "url": { "type": "string", "format": "uri" },
+            "headers": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "timeout": { "type": "number", "minimum": 0 },
+            "allowedTools": { "$ref": "#/$defs/base/properties/allowedTools" },
+            "disabledTools": { "$ref": "#/$defs/base/properties/disabledTools" }
+          }
+        }
+      ]
+    },
+    "server": {
+      "oneOf": [
+        {
+          "allOf": [
+            { "$ref": "#/$defs/stdioServer" },
+            { "not": { "required": ["url"] } }
+          ]
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/httpServer" },
+            { "not": { "required": ["command"] } }
+          ]
+        }
+      ]
+    }
+  }
+}
