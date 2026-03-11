@@ -56,6 +56,25 @@ async function sendRequest(
   request: DaemonRequest,
 ): Promise<DaemonResponse> {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    let buffer = '';
+
+    const settleResolve = (response: DaemonResponse) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        resolve(response);
+      }
+    };
+
+    const settleReject = (error: Error) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        reject(error);
+      }
+    };
+
     const socket = Bun.connect({
       unix: socketPath,
       socket: {
@@ -63,30 +82,44 @@ async function sendRequest(
           socket.write(JSON.stringify(request));
         },
         data(socket, data) {
+          buffer += data.toString();
+          const newlineIndex = buffer.indexOf('
+');
+          if (newlineIndex === -1) {
+            return;
+          }
+
+          const raw = buffer.slice(0, newlineIndex).trim();
           try {
-            const response = JSON.parse(data.toString().trim());
+            const response = JSON.parse(raw) as DaemonResponse;
             socket.end();
-            resolve(response);
-          } catch (err) {
+            settleResolve(response);
+          } catch {
             socket.end();
-            reject(new Error('Invalid response from daemon'));
+            settleReject(new Error('Invalid response from daemon'));
           }
         },
         error(socket, error) {
-          reject(error);
+          settleReject(error instanceof Error ? error : new Error(String(error)));
         },
         close() {
           // Connection closed
         },
         connectError(socket, error) {
-          reject(error);
+          settleReject(error instanceof Error ? error : new Error(String(error)));
         },
       },
     });
 
-    // Timeout after 5 seconds (fast fallback to direct connection)
-    setTimeout(() => {
-      reject(new Error('Daemon request timeout'));
+    const timeoutId = setTimeout(() => {
+      if (!settled) {
+        try {
+          socket.end();
+        } catch {
+          // ignore
+        }
+        settleReject(new Error('Daemon request timeout'));
+      }
     }, 5000);
   });
 }
