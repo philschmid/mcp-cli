@@ -385,6 +385,7 @@ Examples:
 Environment Variables:
   MCP_NO_DAEMON=1        Disable connection caching (force fresh connections)
   MCP_DAEMON_TIMEOUT=N   Set daemon idle timeout in seconds (default: 60)
+  MCP_STDERR=1           Stream server stderr during successful runs
 
 Config File:
   The CLI looks for mcp_servers.json in:
