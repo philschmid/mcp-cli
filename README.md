@@ -352,7 +352,8 @@ The CLI searches for configuration in this order:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `MCP_CONFIG_PATH` | Path to config file | (none) |
-| `MCP_DEBUG` | Enable debug output | `false` |
+| `MCP_DEBUG` | Enable debug output (includes live server stderr) | `false` |
+| `MCP_STDERR` | Stream server stderr during successful runs (`1` to enable) | `false` |
 | `MCP_TIMEOUT` | Request timeout (seconds) | `1800` (30 min) |
 | `MCP_CONCURRENCY` | Servers processed in parallel (not a limit on total) | `5` |
 | `MCP_MAX_RETRIES` | Retry attempts for transient errors (0 = disable) | `3` |

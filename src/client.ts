@@ -243,15 +243,18 @@ export async function connectToServer(
     } else {
       transport = createStdioTransport(config);
 
-      // Capture stderr for debugging - attach BEFORE connect
-      // Always stream stderr immediately so auth prompts are visible
+      // Capture stderr for enhanced error messages.
+      // Stream live stderr only in debug mode (or when explicitly enabled).
       const stderrStream = transport.stderr;
+      const shouldStreamStderr =
+        process.env.MCP_DEBUG || process.env.MCP_STDERR === '1';
       if (stderrStream) {
         stderrStream.on('data', (chunk: Buffer) => {
           const text = chunk.toString();
           stderrChunks.push(text);
-          // Always stream stderr immediately so users can see auth prompts
-          process.stderr.write(`[${serverName}] ${text}`);
+          if (shouldStreamStderr) {
+            process.stderr.write(`[${serverName}] ${text}`);
+          }
         });
       }
     }
@@ -266,16 +269,6 @@ export async function connectToServer(
         err.message = `${err.message}\n\nServer stderr:\n${stderrOutput}`;
       }
       throw error;
-    }
-
-    // For successful connections, forward stderr to console
-    if (!isHttpServer(config)) {
-      const stderrStream = (transport as StdioClientTransport).stderr;
-      if (stderrStream) {
-        stderrStream.on('data', (chunk: Buffer) => {
-          process.stderr.write(chunk);
-        });
-      }
     }
 
     return {
