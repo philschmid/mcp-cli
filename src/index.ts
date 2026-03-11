@@ -383,6 +383,8 @@ Examples:
   cat input.json | mcp-cli call server tool      # Read from stdin (no '-' needed)
 
 Environment Variables:
+  MCP_DEBUG=1            Enable debug logs (includes live server stderr)
+  MCP_STDERR=1           Stream server stderr during successful runs
   MCP_NO_DAEMON=1        Disable connection caching (force fresh connections)
   MCP_DAEMON_TIMEOUT=N   Set daemon idle timeout in seconds (default: 60)
 
