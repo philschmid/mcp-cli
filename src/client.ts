@@ -91,6 +91,15 @@ function getRetryConfig(): RetryConfig {
 }
 
 /**
+ * Check whether server stderr should be streamed live to the terminal.
+ * Stderr is always captured for connection error reporting, but live streaming
+ * is opt-in to avoid noisy output during successful runs.
+ */
+export function shouldStreamServerStderr(): boolean {
+  return process.env.MCP_DEBUG === '1' || process.env.MCP_STDERR === '1';
+}
+
+/**
  * Check if an error is transient and worth retrying
  * Uses error codes when available, falls back to message matching
  */
@@ -243,15 +252,16 @@ export async function connectToServer(
     } else {
       transport = createStdioTransport(config);
 
-      // Capture stderr for debugging - attach BEFORE connect
-      // Always stream stderr immediately so auth prompts are visible
+      // Capture stderr before connect so we can enrich connection errors.
+      // Live stderr streaming stays opt-in via MCP_DEBUG=1 or MCP_STDERR=1.
       const stderrStream = transport.stderr;
       if (stderrStream) {
         stderrStream.on('data', (chunk: Buffer) => {
           const text = chunk.toString();
           stderrChunks.push(text);
-          // Always stream stderr immediately so users can see auth prompts
-          process.stderr.write(`[${serverName}] ${text}`);
+          if (shouldStreamServerStderr()) {
+            process.stderr.write(`[${serverName}] ${text}`);
+          }
         });
       }
     }
@@ -266,16 +276,6 @@ export async function connectToServer(
         err.message = `${err.message}\n\nServer stderr:\n${stderrOutput}`;
       }
       throw error;
-    }
-
-    // For successful connections, forward stderr to console
-    if (!isHttpServer(config)) {
-      const stderrStream = (transport as StdioClientTransport).stderr;
-      if (stderrStream) {
-        stderrStream.on('data', (chunk: Buffer) => {
-          process.stderr.write(chunk);
-        });
-      }
     }
 
     return {
