@@ -56,6 +56,14 @@ export interface McpServersConfig {
   mcpServers: Record<string, ServerConfig>;
 }
 
+export interface LoadConfigOptions {
+  /**
+   * Only substitute environment variables for these servers.
+   * Other server configs are returned untouched and evaluated lazily by callers.
+   */
+  substituteServers?: string[];
+}
+
 // ============================================================================
 // Tool Filtering
 // ============================================================================
@@ -398,6 +406,7 @@ function getDefaultConfigPaths(): string[] {
  */
 export async function loadConfig(
   explicitPath?: string,
+  options?: LoadConfigOptions,
 ): Promise<McpServersConfig> {
   let configPath: string | undefined;
 
@@ -496,8 +505,24 @@ export async function loadConfig(
     }
   }
 
-  // Substitute environment variables
-  config = substituteEnvVarsInObject(config);
+  // Substitute environment variables lazily for the requested server(s).
+  // This avoids unrelated servers with missing env vars polluting targeted commands
+  // such as `info <server>` or `call <server>/<tool>`.
+  const substituteServers = new Set(
+    options?.substituteServers ?? Object.keys(config.mcpServers),
+  );
+
+  config = {
+    ...config,
+    mcpServers: Object.fromEntries(
+      Object.entries(config.mcpServers).map(([serverName, serverConfig]) => [
+        serverName,
+        substituteServers.has(serverName)
+          ? substituteEnvVarsInObject(serverConfig)
+          : serverConfig,
+      ]),
+    ),
+  };
 
   return config;
 }

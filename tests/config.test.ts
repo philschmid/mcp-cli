@@ -84,6 +84,35 @@ describe('config', () => {
       delete process.env.TEST_MCP_TOKEN;
     });
 
+    test('only substitutes env vars for scoped servers', async () => {
+      delete process.env.MCP_STRICT_ENV;
+      delete process.env.UNRELATED_SECRET;
+
+      const configPath = join(tempDir, 'scoped_env_config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            chrome: {
+              command: 'echo',
+              args: ['ok'],
+            },
+            github: {
+              command: 'echo',
+              env: { TOKEN: '${UNRELATED_SECRET}' },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath, {
+        substituteServers: ['chrome'],
+      });
+
+      expect((config.mcpServers.chrome as any).args).toEqual(['ok']);
+      expect((config.mcpServers.github as any).env.TOKEN).toBe('${UNRELATED_SECRET}');
+    });
+
     test('handles missing env vars gracefully with MCP_STRICT_ENV=false', async () => {
       // Set non-strict mode to allow missing env vars with warning
       process.env.MCP_STRICT_ENV = 'false';
