@@ -172,6 +172,22 @@ describe('config', () => {
 
       await expect(loadConfig(configPath)).rejects.toThrow('Invalid server configuration');
     });
+
+
+    test('throws object-specific error on string server config', async () => {
+      const configPath = join(tempDir, 'string_server.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            broken: 'echo hello',
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('Invalid server configuration for "broken"');
+      await expect(loadConfig(configPath)).rejects.toThrow('Server config must be an object');
+    });
   });
 
   describe('getServerConfig', () => {
