@@ -24,6 +24,9 @@ describe('CLI Integration Tests', () => {
     testFilePath = join(tempDir, 'test.txt');
     await writeFile(testFilePath, 'Hello from test file!');
 
+    // Create a large file for pipe/truncation regression coverage
+    await writeFile(join(tempDir, 'large.txt'), 'x'.repeat(100000));
+
     // Create subdirectory with more files
     const subDir = join(tempDir, 'subdir');
     await mkdir(subDir);
@@ -262,6 +265,28 @@ describe('CLI Integration Tests', () => {
       expect(result.stdout).not.toContain('"content"');
       expect(result.stdout).not.toContain('"type"');
       expect(result.stdout).not.toContain('"text"');
+    });
+
+    test('does not truncate large output when piped (issue #23)', async () => {
+      const cliPath = join(import.meta.dir, '..', '..', 'src', 'index.ts');
+      const largeFilePath = join(tempDir, 'large.txt');
+      const args = JSON.stringify({ path: largeFilePath });
+
+      const proc = Bun.spawn(
+        ['bun', 'run', cliPath, '-c', configPath, 'call', 'filesystem', 'read_file', args],
+        {
+          cwd: process.cwd(),
+          env: { ...process.env, MCP_NO_DAEMON: '1' },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        }
+      );
+      const stdout = await new Response(proc.stdout).text();
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+
+      expect(exitCode).toBe(0);
+      expect(stdout.length).toBe(100001);
     });
   });
 
