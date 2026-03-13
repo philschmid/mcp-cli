@@ -235,6 +235,16 @@ describe('config', () => {
       expect(isHttpServer({ command: 'echo' })).toBe(false);
     });
 
+
+    test('isHttpServer accepts HTTP config with headers', () => {
+      expect(
+        isHttpServer({
+          url: 'https://example.com',
+          headers: { Authorization: 'Bearer token' },
+        })
+      ).toBe(true);
+    });
+
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
