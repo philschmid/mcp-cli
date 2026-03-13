@@ -250,8 +250,9 @@ export async function connectToServer(
         stderrStream.on('data', (chunk: Buffer) => {
           const text = chunk.toString();
           stderrChunks.push(text);
-          // Always stream stderr immediately so users can see auth prompts
-          process.stderr.write(`[${serverName}] ${text}`);
+          if (process.env.MCP_DEBUG) {
+            process.stderr.write(`[${serverName}] ${text}`);
+          }
         });
       }
     }
@@ -266,16 +267,6 @@ export async function connectToServer(
         err.message = `${err.message}\n\nServer stderr:\n${stderrOutput}`;
       }
       throw error;
-    }
-
-    // For successful connections, forward stderr to console
-    if (!isHttpServer(config)) {
-      const stderrStream = (transport as StdioClientTransport).stderr;
-      if (stderrStream) {
-        stderrStream.on('data', (chunk: Buffer) => {
-          process.stderr.write(chunk);
-        });
-      }
     }
 
     return {

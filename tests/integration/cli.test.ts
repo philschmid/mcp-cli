@@ -52,6 +52,30 @@ describe('CLI Integration Tests', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
+  async function createNoisyServerConfig(name: string): Promise<string> {
+    const serverPath = join(tempDir, `${name}.js`);
+    await writeFile(
+      serverPath,
+      `process.stderr.write("startup noise\\n");
+process.exit(1);
+`
+    );
+
+    const noisyConfigPath = join(tempDir, `${name}.json`);
+    await writeFile(
+      noisyConfigPath,
+      JSON.stringify({
+        mcpServers: {
+          noisy: {
+            command: 'node',
+            args: [serverPath],
+          },
+        },
+      })
+    );
+    return noisyConfigPath;
+  }
+
   // Helper to run CLI commands
   async function runCli(
     args: string[]
@@ -75,6 +99,31 @@ describe('CLI Integration Tests', () => {
       };
     }
   }
+
+  describe('server stderr forwarding', () => {
+    test('does not stream server stderr immediately by default', async () => {
+      const noisyConfigPath = await createNoisyServerConfig('noisy-default');
+      const cliPath = join(import.meta.dir, '..', '..', 'src', 'index.ts');
+      const result = await $`MCP_NO_DAEMON=1 MCP_MAX_RETRIES=0 bun run ${cliPath} -c ${noisyConfigPath} info noisy`.nothrow();
+      const stderr = result.stderr.toString();
+
+      expect(stderr).toContain('Server stderr:');
+      expect(stderr).toContain('startup noise');
+      expect(stderr).not.toContain('[noisy] startup noise');
+      expect(result.exitCode).not.toBe(0);
+    });
+
+    test('streams server stderr immediately when MCP_DEBUG is enabled', async () => {
+      const noisyConfigPath = await createNoisyServerConfig('noisy-debug');
+      const cliPath = join(import.meta.dir, '..', '..', 'src', 'index.ts');
+      const result = await $`MCP_NO_DAEMON=1 MCP_MAX_RETRIES=0 MCP_DEBUG=1 bun run ${cliPath} -c ${noisyConfigPath} info noisy`.nothrow();
+      const stderr = result.stderr.toString();
+
+      expect(stderr).toContain('[noisy] startup noise');
+      expect(stderr).toContain('Server stderr:');
+      expect(result.exitCode).not.toBe(0);
+    });
+  });
 
   describe('--help', () => {
     test('shows help message', async () => {
@@ -316,6 +365,30 @@ describe('HTTP Transport Integration Tests', () => {
   afterAll(async () => {
     await rm(tempDir, { recursive: true, force: true });
   });
+
+  async function createNoisyServerConfig(name: string): Promise<string> {
+    const serverPath = join(tempDir, `${name}.js`);
+    await writeFile(
+      serverPath,
+      `process.stderr.write("startup noise\\n");
+process.exit(1);
+`
+    );
+
+    const noisyConfigPath = join(tempDir, `${name}.json`);
+    await writeFile(
+      noisyConfigPath,
+      JSON.stringify({
+        mcpServers: {
+          noisy: {
+            command: 'node',
+            args: [serverPath],
+          },
+        },
+      })
+    );
+    return noisyConfigPath;
+  }
 
   // Helper to run CLI commands with HTTP config
   async function runCli(
