@@ -147,7 +147,7 @@ export function isToolAllowed(toolName: string, config: ServerConfig): boolean {
  * Check if a server config is HTTP-based
  */
 export function isHttpServer(config: ServerConfig): config is HttpServerConfig {
-  return 'url' in config;
+  return 'url' in config && !('command' in config);
 }
 
 /**

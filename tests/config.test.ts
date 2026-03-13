@@ -235,6 +235,15 @@ describe('config', () => {
       expect(isHttpServer({ command: 'echo' })).toBe(false);
     });
 
+    test('rejects mixed url+command shape as http config', () => {
+      expect(
+        isHttpServer({
+          url: 'https://example.com',
+          command: 'echo',
+        })
+      ).toBe(false);
+    });
+
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
