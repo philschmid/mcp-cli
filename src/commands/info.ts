@@ -38,16 +38,16 @@ function parseTarget(target: string): { server: string; tool?: string } {
  * Execute the info command
  */
 export async function infoCommand(options: InfoOptions): Promise<void> {
+  const { server: serverName, tool: toolName } = parseTarget(options.target);
+
   let config: McpServersConfig;
 
   try {
-    config = await loadConfig(options.configPath);
+    config = await loadConfig(options.configPath, { onlyServer: serverName });
   } catch (error) {
     console.error((error as Error).message);
     process.exit(ErrorCode.CLIENT_ERROR);
   }
-
-  const { server: serverName, tool: toolName } = parseTarget(options.target);
 
   let serverConfig: ServerConfig;
   try {

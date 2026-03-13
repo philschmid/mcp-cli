@@ -108,6 +108,57 @@ describe('config', () => {
       delete process.env.MCP_STRICT_ENV;
     });
 
+    test('only substitutes env vars for the requested server when onlyServer is set', async () => {
+      delete process.env.MCP_STRICT_ENV;
+      process.env.GOOD_VAR = 'ok';
+
+      const configPath = join(tempDir, 'targeted_env.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            target: {
+              command: 'echo',
+              env: { TOKEN: '${GOOD_VAR}' },
+            },
+            other: {
+              command: 'echo',
+              env: { TOKEN: '${MISSING_VAR}' },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath, { onlyServer: 'target' });
+      expect((config.mcpServers.target as any).env.TOKEN).toBe('ok');
+      expect((config.mcpServers.other as any).env.TOKEN).toBe('${MISSING_VAR}');
+
+      delete process.env.GOOD_VAR;
+    });
+
+    test('still throws when requested server has missing env vars in strict mode', async () => {
+      delete process.env.MCP_STRICT_ENV;
+
+      const configPath = join(tempDir, 'targeted_missing_env.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            target: {
+              command: 'echo',
+              env: { TOKEN: '${TARGET_ONLY_MISSING_VAR}' },
+            },
+            other: {
+              command: 'echo',
+              env: { TOKEN: '${OTHER_MISSING_VAR}' },
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath, { onlyServer: 'target' })).rejects.toThrow('TARGET_ONLY_MISSING_VAR');
+    });
+
     test('throws error on missing env vars in strict mode (default)', async () => {
       // Ensure strict mode is enabled (default)
       delete process.env.MCP_STRICT_ENV;

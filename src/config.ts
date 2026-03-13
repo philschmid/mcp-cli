@@ -396,8 +396,13 @@ function getDefaultConfigPaths(): string[] {
 /**
  * Load and parse MCP servers configuration
  */
+export interface LoadConfigOptions {
+  onlyServer?: string;
+}
+
 export async function loadConfig(
   explicitPath?: string,
+  options: LoadConfigOptions = {},
 ): Promise<McpServersConfig> {
   let configPath: string | undefined;
 
@@ -497,7 +502,20 @@ export async function loadConfig(
   }
 
   // Substitute environment variables
-  config = substituteEnvVarsInObject(config);
+  if (options.onlyServer) {
+    const targetServer = config.mcpServers[options.onlyServer];
+    if (targetServer) {
+      config = {
+        ...config,
+        mcpServers: {
+          ...config.mcpServers,
+          [options.onlyServer]: substituteEnvVarsInObject(targetServer),
+        },
+      };
+    }
+  } else {
+    config = substituteEnvVarsInObject(config);
+  }
 
   return config;
 }
