@@ -204,9 +204,35 @@ describe('config', () => {
       const config = await loadConfig(configPath);
       expect(() => getServerConfig(config, 'unknown')).toThrow('not found');
     });
+
+    test('throws not found for empty configured servers', async () => {
+      const configPath = join(tempDir, 'empty_servers_for_lookup.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {},
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      expect(() => getServerConfig(config, 'anything')).toThrow('not found');
+    });
   });
 
   describe('listServerNames', () => {
+    test('returns empty array when no servers are configured', async () => {
+      const configPath = join(tempDir, 'empty-config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {},
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      expect(listServerNames(config)).toEqual([]);
+    });
+
     test('returns all server names', async () => {
       const configPath = join(tempDir, 'config.json');
       await writeFile(
