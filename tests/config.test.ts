@@ -227,6 +227,24 @@ describe('config', () => {
       expect(names).toContain('gamma');
       expect(names.length).toBe(3);
     });
+
+
+    test('preserves declaration order of server names', async () => {
+      const configPath = join(tempDir, 'config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            gamma: { url: 'https://example.com' },
+            alpha: { command: 'a' },
+            beta: { command: 'b' },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      expect(listServerNames(config)).toEqual(['gamma', 'alpha', 'beta']);
+    });
   });
 
   describe('type guards', () => {
