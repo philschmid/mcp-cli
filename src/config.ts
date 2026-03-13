@@ -48,6 +48,13 @@ export interface HttpServerConfig extends BaseServerConfig {
   url: string;
   headers?: Record<string, string>;
   timeout?: number;
+  /**
+   * Transport type for HTTP connection
+   * - 'streamable-http': Uses Streamable HTTP transport (default, recommended)
+   * - 'sse': Uses legacy Server-Sent Events transport
+   * If not specified, auto-detects based on URL path (/sse -> 'sse', others -> 'streamable-http')
+   */
+  transportType?: 'streamable-http' | 'sse';
 }
 
 export type ServerConfig = StdioServerConfig | HttpServerConfig;
@@ -498,6 +505,28 @@ export async function loadConfig(
 
   // Substitute environment variables
   config = substituteEnvVarsInObject(config);
+
+  // Validate transportType for HTTP servers (after env substitution)
+  for (const [serverName, serverConfig] of Object.entries(config.mcpServers)) {
+    const hasUrl = 'url' in serverConfig;
+    if (hasUrl && 'transportType' in serverConfig) {
+      const transportType = serverConfig.transportType;
+      if (
+        typeof transportType !== 'string' ||
+        (transportType !== 'sse' && transportType !== 'streamable-http')
+      ) {
+        throw new Error(
+          formatCliError({
+            code: ErrorCode.CLIENT_ERROR,
+            type: 'CONFIG_INVALID_SERVER',
+            message: `Invalid transportType for server "${serverName}"`,
+            details: `transportType must be "sse" or "streamable-http", got: ${JSON.stringify(transportType)}`,
+            suggestion: `Set "transportType" to "sse" for legacy SSE servers or "streamable-http" for modern servers (default)`,
+          }),
+        );
+      }
+    }
+  }
 
   return config;
 }

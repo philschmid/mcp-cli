@@ -2,10 +2,11 @@
  * MCP Client - Connection management for MCP servers
  */
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import {
   type HttpServerConfig,
   type ServerConfig,
@@ -19,13 +20,13 @@ import {
   isDaemonEnabled,
   isHttpServer,
   isToolAllowed,
-} from './config.js';
+} from "./config.js";
 import {
   type DaemonConnection,
   cleanupOrphanedDaemons,
   getDaemonConnection,
-} from './daemon-client.js';
-import { VERSION } from './version.js';
+} from "./daemon-client.js";
+import { VERSION } from "./version.js";
 
 // Re-export config utilities for convenience
 export { debug, getTimeoutMs, getConcurrencyLimit };
@@ -99,14 +100,14 @@ export function isTransientError(error: Error): boolean {
   const nodeError = error as NodeJS.ErrnoException;
   if (nodeError.code) {
     const transientCodes = [
-      'ECONNREFUSED',
-      'ECONNRESET',
-      'ETIMEDOUT',
-      'ENOTFOUND',
-      'EPIPE',
-      'ENETUNREACH',
-      'EHOSTUNREACH',
-      'EAI_AGAIN',
+      "ECONNREFUSED",
+      "ECONNRESET",
+      "ETIMEDOUT",
+      "ENOTFOUND",
+      "EPIPE",
+      "ENETUNREACH",
+      "EHOSTUNREACH",
+      "EAI_AGAIN",
     ];
     if (transientCodes.includes(nodeError.code)) {
       return true;
@@ -228,7 +229,7 @@ export async function connectToServer(
   return withRetry(async () => {
     const client = new Client(
       {
-        name: 'mcp-cli',
+        name: "mcp-cli",
         version: VERSION,
       },
       {
@@ -236,7 +237,10 @@ export async function connectToServer(
       },
     );
 
-    let transport: StdioClientTransport | StreamableHTTPClientTransport;
+    let transport:
+      | StdioClientTransport
+      | StreamableHTTPClientTransport
+      | SSEClientTransport;
 
     if (isHttpServer(config)) {
       transport = createHttpTransport(config);
@@ -247,7 +251,7 @@ export async function connectToServer(
       // Always stream stderr immediately so auth prompts are visible
       const stderrStream = transport.stderr;
       if (stderrStream) {
-        stderrStream.on('data', (chunk: Buffer) => {
+        stderrStream.on("data", (chunk: Buffer) => {
           const text = chunk.toString();
           stderrChunks.push(text);
           // Always stream stderr immediately so users can see auth prompts
@@ -260,7 +264,7 @@ export async function connectToServer(
       await client.connect(transport);
     } catch (error) {
       // Enhance error with captured stderr
-      const stderrOutput = stderrChunks.join('').trim();
+      const stderrOutput = stderrChunks.join("").trim();
       if (stderrOutput) {
         const err = error as Error;
         err.message = `${err.message}\n\nServer stderr:\n${stderrOutput}`;
@@ -272,7 +276,7 @@ export async function connectToServer(
     if (!isHttpServer(config)) {
       const stderrStream = (transport as StdioClientTransport).stderr;
       if (stderrStream) {
-        stderrStream.on('data', (chunk: Buffer) => {
+        stderrStream.on("data", (chunk: Buffer) => {
           process.stderr.write(chunk);
         });
       }
@@ -289,17 +293,34 @@ export async function connectToServer(
 
 /**
  * Create HTTP transport for remote servers
+ * Auto-detects transport type based on URL path or explicit config
  */
 function createHttpTransport(
   config: HttpServerConfig,
-): StreamableHTTPClientTransport {
+): StreamableHTTPClientTransport | SSEClientTransport {
   const url = new URL(config.url);
 
-  return new StreamableHTTPClientTransport(url, {
+  // Auto-detect transport type if not specified
+  const transportType =
+    config.transportType ??
+    (url.pathname.split("/").includes("sse") ? "sse" : "streamable-http");
+
+  const transportOptions = {
     requestInit: {
       headers: config.headers,
     },
-  });
+  };
+
+  switch (transportType) {
+    case "sse":
+      return new SSEClientTransport(url, transportOptions);
+    case "streamable-http":
+      return new StreamableHTTPClientTransport(url, transportOptions);
+    default:
+      throw new Error(
+        `Invalid transportType: ${transportType}. Expected "sse" or "streamable-http".`,
+      );
+  }
 }
 
 /**
@@ -323,7 +344,7 @@ function createStdioTransport(config: StdioServerConfig): StdioClientTransport {
     args: config.args,
     env: mergedEnv,
     cwd: config.cwd,
-    stderr: 'pipe', // Capture stderr for better error messages
+    stderr: "pipe", // Capture stderr for better error messages
   });
 }
 
@@ -338,7 +359,7 @@ export async function listTools(client: Client): Promise<ToolInfo[]> {
       description: tool.description,
       inputSchema: tool.inputSchema as Record<string, unknown>,
     }));
-  }, 'list tools');
+  }, "list tools");
 }
 
 /**
