@@ -2,7 +2,7 @@
  * Unit tests for config module
  */
 
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, spyOn } from 'bun:test';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -171,6 +171,27 @@ describe('config', () => {
       );
 
       await expect(loadConfig(configPath)).rejects.toThrow('Invalid server configuration');
+    });
+
+    test('warns but loads when mcpServers is empty', async () => {
+      const configPath = join(tempDir, 'empty_servers.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {},
+        })
+      );
+
+      const warn = spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const config = await loadConfig(configPath);
+        expect(config.mcpServers).toEqual({});
+        expect(warn).toHaveBeenCalledWith(
+          '[mcp-cli] Warning: No servers configured in mcpServers. Add server configurations to use MCP tools.',
+        );
+      } finally {
+        warn.mockRestore();
+      }
     });
   });
 
