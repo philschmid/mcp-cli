@@ -12,6 +12,7 @@ import {
   listServerNames,
   isHttpServer,
   isStdioServer,
+  filterTools,
 } from '../src/config';
 
 describe('config', () => {
@@ -238,6 +239,88 @@ describe('config', () => {
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
+    });
+  });
+
+
+  describe('filterTools', () => {
+    test('disabledTools takes precedence over allowedTools', () => {
+      const tools = [
+        { name: 'read_file' },
+        { name: 'write_file' },
+        { name: 'grep_file' },
+      ];
+
+      const filtered = filterTools(tools, {
+        command: 'echo',
+        allowedTools: ['*_file'],
+        disabledTools: ['write_*'],
+      });
+
+      expect(filtered.map((tool) => tool.name)).toEqual(['read_file', 'grep_file']);
+    });
+
+    test('returns all tools when no filters are configured', () => {
+      const tools = [
+        { name: 'read_file' },
+        { name: 'write_file' },
+        { name: 'grep_file' },
+      ];
+
+      const filtered = filterTools(tools, {
+        command: 'echo',
+      });
+
+      expect(filtered.map((tool) => tool.name)).toEqual([
+        'read_file',
+        'write_file',
+        'grep_file',
+      ]);
+    });
+
+    test('applies wildcard allowedTools patterns case-insensitively', () => {
+      const tools = [
+        { name: 'READ_FILE' },
+        { name: 'write_file' },
+        { name: 'grep_text' },
+      ];
+
+      const filtered = filterTools(tools, {
+        command: 'echo',
+        allowedTools: ['read_*'],
+      });
+
+      expect(filtered.map((tool) => tool.name)).toEqual(['READ_FILE']);
+    });
+
+    test('applies wildcard disabledTools patterns case-insensitively', () => {
+      const tools = [
+        { name: 'READ_FILE' },
+        { name: 'write_file' },
+        { name: 'grep_text' },
+      ];
+
+      const filtered = filterTools(tools, {
+        command: 'echo',
+        disabledTools: ['read_*'],
+      });
+
+      expect(filtered.map((tool) => tool.name)).toEqual(['write_file', 'grep_text']);
+    });
+
+    test('supports single-character wildcard matching with ?', () => {
+      const tools = [
+        { name: 'read_a' },
+        { name: 'read_ab' },
+        { name: 'read_1' },
+      ];
+
+      const filtered = filterTools(tools, {
+        command: 'echo',
+        allowedTools: ['read_?'],
+      });
+
+      expect(filtered.map((tool) => tool.name)).toEqual(['read_a', 'read_1']);
     });
   });
 });
