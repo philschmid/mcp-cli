@@ -204,6 +204,24 @@ describe('config', () => {
       const config = await loadConfig(configPath);
       expect(() => getServerConfig(config, 'unknown')).toThrow('not found');
     });
+
+
+    test('rejects server configs that specify both command and url', async () => {
+      const configPath = join(tempDir, 'config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            mixed: {
+              command: 'echo',
+              url: 'https://example.com',
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('has both "command" and "url"');
+    });
   });
 
   describe('listServerNames', () => {
