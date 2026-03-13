@@ -207,6 +207,19 @@ describe('config', () => {
   });
 
   describe('listServerNames', () => {
+    test('returns empty array when no servers are configured', async () => {
+      const configPath = join(tempDir, 'empty-config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {},
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      expect(listServerNames(config)).toEqual([]);
+    });
+
     test('returns all server names', async () => {
       const configPath = join(tempDir, 'config.json');
       await writeFile(
