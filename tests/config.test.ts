@@ -204,6 +204,24 @@ describe('config', () => {
       const config = await loadConfig(configPath);
       expect(() => getServerConfig(config, 'unknown')).toThrow('not found');
     });
+
+
+    test('includes available server names in unknown server error', async () => {
+      const configPath = join(tempDir, 'config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            alpha: { command: 'cmd-a' },
+            beta: { command: 'cmd-b' },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      expect(() => getServerConfig(config, 'unknown')).toThrow('alpha');
+      expect(() => getServerConfig(config, 'unknown')).toThrow('beta');
+    });
   });
 
   describe('listServerNames', () => {
@@ -226,6 +244,19 @@ describe('config', () => {
       expect(names).toContain('beta');
       expect(names).toContain('gamma');
       expect(names.length).toBe(3);
+    });
+
+    test('returns empty array when no servers are configured', async () => {
+      const configPath = join(tempDir, 'config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {},
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      expect(listServerNames(config)).toEqual([]);
     });
   });
 
