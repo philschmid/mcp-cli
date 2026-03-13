@@ -206,6 +206,23 @@ describe('config', () => {
     });
   });
 
+    test('rejects server configs missing both command and url', async () => {
+      const configPath = join(tempDir, 'config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            invalid: {
+              env: { TOKEN: 'abc' },
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('missing required field');
+      await expect(loadConfig(configPath)).rejects.toThrow('either "command" (for stdio) or "url" (for HTTP)');
+    });
+
   describe('listServerNames', () => {
     test('returns all server names', async () => {
       const configPath = join(tempDir, 'config.json');
