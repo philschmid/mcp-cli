@@ -239,5 +239,16 @@ describe('config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
     });
+
+
+    test('isStdioServer accepts stdio config with args and env', () => {
+      expect(
+        isStdioServer({
+          command: 'echo',
+          args: ['hello'],
+          env: { GREETING: 'world' },
+        })
+      ).toBe(true);
+    });
   });
 });
