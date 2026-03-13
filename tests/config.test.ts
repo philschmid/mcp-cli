@@ -239,5 +239,15 @@ describe('config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
     });
+
+
+    test('rejects mixed url+command shape as stdio config', () => {
+      expect(
+        isStdioServer({
+          url: 'https://example.com',
+          command: 'echo',
+        })
+      ).toBe(false);
+    });
   });
 });

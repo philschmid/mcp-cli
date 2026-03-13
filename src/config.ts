@@ -156,7 +156,7 @@ export function isHttpServer(config: ServerConfig): config is HttpServerConfig {
 export function isStdioServer(
   config: ServerConfig,
 ): config is StdioServerConfig {
-  return 'command' in config;
+  return 'command' in config && !('url' in config);
 }
 
 // ============================================================================
