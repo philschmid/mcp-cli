@@ -174,6 +174,21 @@ describe('config', () => {
     });
   });
 
+    test('throws object-specific error on false server config', async () => {
+      const configPath = join(tempDir, 'false_server.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            falsy: false,
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('Invalid server configuration for "falsy"');
+      await expect(loadConfig(configPath)).rejects.toThrow('Server config must be an object');
+    });
+
   describe('getServerConfig', () => {
     test('returns server config by name', async () => {
       const configPath = join(tempDir, 'config.json');
