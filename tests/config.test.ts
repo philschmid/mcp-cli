@@ -128,6 +128,41 @@ describe('config', () => {
       await expect(loadConfig(configPath)).rejects.toThrow('MISSING_ENV_VAR');
     });
 
+    test('only substitutes env vars for requested servers when scoped', async () => {
+      delete process.env.MCP_STRICT_ENV;
+      process.env.TARGET_SERVER_TOKEN = 'scoped-secret';
+
+      const configPath = join(tempDir, 'scoped_env.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            target: {
+              url: 'https://example.com',
+              headers: { Authorization: 'Bearer ${TARGET_SERVER_TOKEN}' },
+            },
+            unrelated: {
+              command: 'echo',
+              env: { TOKEN: '${UNRELATED_MISSING_VAR}' },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath, {
+        envServerNames: ['target'],
+      });
+
+      expect((config.mcpServers.target as any).headers.Authorization).toBe(
+        'Bearer scoped-secret'
+      );
+      expect((config.mcpServers.unrelated as any).env.TOKEN).toBe(
+        '${UNRELATED_MISSING_VAR}'
+      );
+
+      delete process.env.TARGET_SERVER_TOKEN;
+    });
+
     test('throws error on empty server config', async () => {
       const configPath = join(tempDir, 'empty_server.json');
       await writeFile(
