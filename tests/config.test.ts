@@ -174,6 +174,23 @@ describe('config', () => {
     });
   });
 
+    test('rejects body-only server config as missing command/url shape', async () => {
+      const configPath = join(tempDir, 'body_only_server.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            bodyonly: {
+              body: { ping: true },
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('Server "bodyonly" missing required field');
+      await expect(loadConfig(configPath)).rejects.toThrow('either "command" (for stdio) or "url" (for HTTP)');
+    });
+
   describe('getServerConfig', () => {
     test('returns server config by name', async () => {
       const configPath = join(tempDir, 'config.json');
