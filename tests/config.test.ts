@@ -174,6 +174,21 @@ describe('config', () => {
     });
   });
 
+    test('throws object-specific error on boolean server config', async () => {
+      const configPath = join(tempDir, 'boolean_server.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            booleanish: true,
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('Invalid server configuration for "booleanish"');
+      await expect(loadConfig(configPath)).rejects.toThrow('Server config must be an object');
+    });
+
   describe('getServerConfig', () => {
     test('returns server config by name', async () => {
       const configPath = join(tempDir, 'config.json');
