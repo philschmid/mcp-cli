@@ -42,6 +42,7 @@ interface ParsedArgs {
   args?: string;
   withDescriptions: boolean;
   configPath?: string;
+  adHocServer?: { name: string; config: { command: string; args?: string[] } | { url: string } };
 }
 
 /**
@@ -142,6 +143,49 @@ function parseArgs(args: string[]): ParsedArgs {
             formatCliError(missingArgumentError('-c/--config', 'path')),
           );
           process.exit(ErrorCode.CLIENT_ERROR);
+        }
+        break;
+
+      case '--server-command':
+        {
+          const cmdValue = args[++i];
+          if (!cmdValue) {
+            console.error(
+              formatCliError(missingArgumentError('--server-command', 'command')),
+            );
+            process.exit(ErrorCode.CLIENT_ERROR);
+          }
+          // Parse command and args (space-separated)
+          const parts = cmdValue.split(' ').filter(p => p.length > 0);
+          if (parts.length === 0) {
+            console.error(
+              formatCliError(missingArgumentError('--server-command', 'command')),
+            );
+            process.exit(ErrorCode.CLIENT_ERROR);
+          }
+          result.adHocServer = {
+            name: 'adhoc',
+            config: {
+              command: parts[0],
+              args: parts.slice(1),
+            },
+          };
+        }
+        break;
+
+      case '--server-url':
+        {
+          const urlValue = args[++i];
+          if (!urlValue) {
+            console.error(
+              formatCliError(missingArgumentError('--server-url', 'url')),
+            );
+            process.exit(ErrorCode.CLIENT_ERROR);
+          }
+          result.adHocServer = {
+            name: 'adhoc',
+            config: { url: urlValue },
+          };
         }
         break;
 
@@ -367,6 +411,12 @@ Options:
   -v, --version            Show version number
   -d, --with-descriptions  Include tool descriptions
   -c, --config <path>      Path to mcp_servers.json config file
+  --server-command <cmd>   Ad-hoc stdio server (e.g., "npx @modelcontextprotocol/server-filesystem /path")
+  --server-url <url>       Ad-hoc HTTP server URL
+
+Ad-hoc Server Examples:
+  mcp-cli --server-command "npx @modelcontextprotocol/server-filesystem ." info adhoc
+  mcp-cli --server-url "https://mcp.example.com/mcp" info adhoc
 
 Output:
   mcp-cli/info/grep        Human-readable text to stdout
@@ -423,6 +473,7 @@ async function main(): Promise<void> {
       await listCommand({
         withDescriptions: args.withDescriptions,
         configPath: args.configPath,
+        adHocServer: args.adHocServer,
       });
       break;
 
@@ -432,6 +483,7 @@ async function main(): Promise<void> {
         target: buildTarget(args.server, args.tool),
         withDescriptions: args.withDescriptions,
         configPath: args.configPath,
+        adHocServer: args.adHocServer,
       });
       break;
 
@@ -440,6 +492,7 @@ async function main(): Promise<void> {
         pattern: args.pattern ?? '',
         withDescriptions: args.withDescriptions,
         configPath: args.configPath,
+        adHocServer: args.adHocServer,
       });
       break;
 
@@ -448,6 +501,7 @@ async function main(): Promise<void> {
         target: buildTarget(args.server, args.tool),
         args: args.args,
         configPath: args.configPath,
+        adHocServer: args.adHocServer,
       });
       break;
   }

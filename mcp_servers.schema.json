@@ -1,0 +1,141 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/philschmid/mcp-cli/main/mcp_servers.schema.json",
+  "title": "MCP Servers Configuration",
+  "description": "Configuration file for MCP CLI servers",
+  "type": "object",
+  "required": ["mcpServers"],
+  "properties": {
+    "mcpServers": {
+      "type": "object",
+      "description": "Map of server names to their configurations",
+      "patternProperties": {
+        "^[a-zA-Z0-9_-]+$": {
+          "$ref": "#/definitions/serverConfig"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "definitions": {
+    "serverConfig": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/stdioServerConfig"
+        },
+        {
+          "$ref": "#/definitions/httpServerConfig"
+        }
+      ]
+    },
+    "stdioServerConfig": {
+      "type": "object",
+      "description": "Configuration for a stdio-based MCP server",
+      "required": ["command"],
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "The command to execute to start the server"
+        },
+        "args": {
+          "type": "array",
+          "description": "Arguments to pass to the command",
+          "items": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables to set for the server process",
+          "patternProperties": {
+            "^[A-Z_][A-Z0-9_]*$": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory for the server process"
+        },
+        "allowedTools": {
+          "type": "array",
+          "description": "Glob patterns for tools to allow (if empty/undefined, all tools are allowed)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "disabledTools": {
+          "type": "array",
+          "description": "Glob patterns for tools to exclude (takes precedence over allowedTools)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "httpServerConfig": {
+      "type": "object",
+      "description": "Configuration for an HTTP-based MCP server",
+      "required": ["url"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL of the HTTP MCP server"
+        },
+        "headers": {
+          "type": "object",
+          "description": "HTTP headers to send with each request",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Request timeout in milliseconds"
+        },
+        "allowedTools": {
+          "type": "array",
+          "description": "Glob patterns for tools to allow (if empty/undefined, all tools are allowed)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "disabledTools": {
+          "type": "array",
+          "description": "Glob patterns for tools to exclude (takes precedence over allowedTools)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "examples": [
+    {
+      "mcpServers": {
+        "filesystem": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+        },
+        "github": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-github"],
+          "env": {
+            "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+          }
+        },
+        "remote": {
+          "url": "https://mcp.example.com/mcp",
+          "headers": {
+            "Authorization": "Bearer ${API_TOKEN}"
+          }
+        }
+      }
+    }
+  ]
+}

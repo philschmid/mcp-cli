@@ -23,6 +23,7 @@ export interface GrepOptions {
   pattern: string;
   withDescriptions: boolean;
   configPath?: string;
+  adHocServer?: { name: string; config: { command: string; args?: string[] } | { url: string } };
 }
 
 interface SearchResult {
@@ -153,7 +154,9 @@ export async function grepCommand(options: GrepOptions): Promise<void> {
   let config: McpServersConfig;
 
   try {
-    config = await loadConfig(options.configPath);
+    config = await loadConfig(options.configPath, {
+      adHocServer: options.adHocServer,
+    });
   } catch (error) {
     console.error((error as Error).message);
     process.exit(ErrorCode.CLIENT_ERROR);

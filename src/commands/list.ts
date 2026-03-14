@@ -22,6 +22,7 @@ import { formatServerList } from '../output.js';
 export interface ListOptions {
   withDescriptions: boolean;
   configPath?: string;
+  adHocServer?: { name: string; config: { command: string; args?: string[] } | { url: string } };
 }
 
 interface ServerWithTools {
@@ -98,7 +99,9 @@ export async function listCommand(options: ListOptions): Promise<void> {
   let config: McpServersConfig;
 
   try {
-    config = await loadConfig(options.configPath);
+    config = await loadConfig(options.configPath, {
+      adHocServer: options.adHocServer,
+    });
   } catch (error) {
     console.error((error as Error).message);
     process.exit(ErrorCode.CLIENT_ERROR);

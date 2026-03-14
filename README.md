@@ -53,6 +53,16 @@ Create `mcp_servers.json` in your current directory or `~/.config/mcp/`:
 }
 ```
 
+**JSON Schema:** Use [`mcp_servers.schema.json`](./mcp_servers.schema.json) for IDE autocompletion and validation:
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/philschmid/mcp-cli/main/mcp_servers.schema.json",
+  "mcpServers": {
+    ...
+  }
+}
+```
+
 ### 3. Discover available tools
 
 ```bash
