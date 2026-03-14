@@ -174,6 +174,21 @@ describe('config', () => {
     });
   });
 
+    test('treats array server config as missing command/url shape', async () => {
+      const configPath = join(tempDir, 'array_server.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            listy: [],
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('Server "listy" missing required field');
+      await expect(loadConfig(configPath)).rejects.toThrow('either "command" (for stdio) or "url" (for HTTP)');
+    });
+
   describe('getServerConfig', () => {
     test('returns server config by name', async () => {
       const configPath = join(tempDir, 'config.json');
