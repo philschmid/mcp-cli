@@ -12,6 +12,7 @@ import {
   listServerNames,
   isHttpServer,
   isStdioServer,
+  getConfigHash,
 } from '../src/config';
 
 describe('config', () => {
@@ -174,6 +175,23 @@ describe('config', () => {
     });
   });
 
+    test('rejects cache-only server config as missing command/url shape', async () => {
+      const configPath = join(tempDir, 'cache_only_server.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            cacheonly: {
+              cache: true,
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('Server "cacheonly" missing required field');
+      await expect(loadConfig(configPath)).rejects.toThrow('either "command" (for stdio) or "url" (for HTTP)');
+    });
+
   describe('getServerConfig', () => {
     test('returns server config by name', async () => {
       const configPath = join(tempDir, 'config.json');
@@ -238,6 +256,28 @@ describe('config', () => {
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
+    });
+  });
+
+  describe('getConfigHash', () => {
+    test('returns the same hash for nested objects with different key order', () => {
+      const first = getConfigHash({
+        url: 'https://example.com',
+        headers: {
+          Authorization: 'Bearer token',
+          'X-Trace-Id': 'abc',
+        },
+      });
+
+      const second = getConfigHash({
+        headers: {
+          'X-Trace-Id': 'abc',
+          Authorization: 'Bearer token',
+        },
+        url: 'https://example.com',
+      });
+
+      expect(first).toBe(second);
     });
   });
 });

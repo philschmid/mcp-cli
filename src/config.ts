@@ -298,8 +298,29 @@ export function getPidPath(serverName: string): string {
  * Generate a hash of server config for stale detection
  * Returns consistent hash for identical configs
  */
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+  }
+
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>).sort(
+      ([a], [b]) => a.localeCompare(b),
+    );
+
+    return `{${entries
+      .map(
+        ([key, entryValue]) =>
+          `${JSON.stringify(key)}:${stableStringify(entryValue)}`,
+      )
+      .join(',')}}`;
+  }
+
+  return JSON.stringify(value);
+}
+
 export function getConfigHash(config: ServerConfig): string {
-  const str = JSON.stringify(config, Object.keys(config).sort());
+  const str = stableStringify(config);
   // Simple hash using Bun's native hashing
   const hasher = new Bun.CryptoHasher('sha256');
   hasher.update(str);
