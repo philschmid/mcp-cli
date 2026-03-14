@@ -223,6 +223,23 @@ export function formatJson(data: unknown): string {
 }
 
 /**
+ * Write stdout and wait for buffered output to flush.
+ */
+export async function writeStdout(text: string): Promise<void> {
+  const writer = Bun.stdout.writer();
+
+  try {
+    writer.write(text);
+    if (!text.endsWith('\n')) {
+      writer.write('\n');
+    }
+    await writer.flush();
+  } finally {
+    writer.end();
+  }
+}
+
+/**
  * Format error message
  */
 export function formatError(message: string): string {

@@ -29,7 +29,7 @@ import {
   toolExecutionError,
   toolNotFoundError,
 } from '../errors.js';
-import { formatJson, formatToolResult } from '../output.js';
+import { formatToolResult, writeStdout } from '../output.js';
 
 export interface CallOptions {
   target: string; // "server/tool"
@@ -108,22 +108,14 @@ async function parseArgs(
  * Execute the call command
  */
 export async function callCommand(options: CallOptions): Promise<void> {
+  const { server: serverName, tool: toolName } = parseTarget(options.target);
+
   let config: McpServersConfig;
 
   try {
-    config = await loadConfig(options.configPath);
-  } catch (error) {
-    console.error((error as Error).message);
-    process.exit(ErrorCode.CLIENT_ERROR);
-  }
-
-  let serverName: string;
-  let toolName: string;
-
-  try {
-    const parsed = parseTarget(options.target);
-    serverName = parsed.server;
-    toolName = parsed.tool;
+    config = await loadConfig(options.configPath, {
+      envServerNames: [serverName],
+    });
   } catch (error) {
     console.error((error as Error).message);
     process.exit(ErrorCode.CLIENT_ERROR);
@@ -163,7 +155,7 @@ export async function callCommand(options: CallOptions): Promise<void> {
 
     // Extract text content from MCP response for CLI-friendly output
     // Uses formatToolResult which extracts text from MCP content array
-    console.log(formatToolResult(result));
+    await writeStdout(formatToolResult(result));
   } catch (error) {
     // Try to get available tools for better error message
     let availableTools: string[] | undefined;

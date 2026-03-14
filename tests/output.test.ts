@@ -3,6 +3,10 @@
  */
 
 import { describe, test, expect } from 'bun:test';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { $ } from 'bun';
 import {
   formatServerList,
   formatSearchResults,
@@ -169,5 +173,24 @@ describe('output', () => {
       const output = formatError('Something went wrong');
       expect(output).toContain('Something went wrong');
     });
+  });
+
+  describe('stdout flushing', () => {
+    test('preserves large piped output', async () => {
+      const tempDir = await mkdtemp(join(tmpdir(), 'mcp-cli-output-test-'));
+      const scriptPath = join(tempDir, 'write-large-output.ts');
+
+      try {
+        await writeFile(
+          scriptPath,
+          `import { writeStdout } from ${JSON.stringify(join(import.meta.dir, '..', 'src', 'output.ts'))};\nawait writeStdout('x'.repeat(200000));\n`,
+        );
+
+        const result = await $`sh -lc ${`bun ${scriptPath} | wc -c`}`.text();
+        expect(result.trim()).toBe('200001');
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    }, 15000);
   });
 });
