@@ -174,6 +174,23 @@ describe('config', () => {
     });
   });
 
+    test('rejects retries-only server config as missing command/url shape', async () => {
+      const configPath = join(tempDir, 'retries_only_server.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            retriesonly: {
+              retries: 3,
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('Server "retriesonly" missing required field');
+      await expect(loadConfig(configPath)).rejects.toThrow('either "command" (for stdio) or "url" (for HTTP)');
+    });
+
   describe('getServerConfig', () => {
     test('returns server config by name', async () => {
       const configPath = join(tempDir, 'config.json');
