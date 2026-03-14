@@ -174,6 +174,23 @@ describe('config', () => {
     });
   });
 
+    test('rejects query-only server config as missing command/url shape', async () => {
+      const configPath = join(tempDir, 'query_only_server.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            queryonly: {
+              query: { ping: '1' },
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('Server "queryonly" missing required field');
+      await expect(loadConfig(configPath)).rejects.toThrow('either "command" (for stdio) or "url" (for HTTP)');
+    });
+
   describe('getServerConfig', () => {
     test('returns server config by name', async () => {
       const configPath = join(tempDir, 'config.json');
