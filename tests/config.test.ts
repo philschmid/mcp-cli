@@ -3,7 +3,7 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -238,6 +238,62 @@ describe('config', () => {
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
+    });
+  });
+
+  describe('config merging', () => {
+    test('merges multiple config files with later overriding earlier', async () => {
+      // Create project-level config in a subdir (we'll change cwd to here)
+      const projectDir = join(tempDir, 'project');
+      await mkdir(projectDir, { recursive: true });
+      const projectConfig = join(projectDir, 'mcp_servers.json');
+      await writeFile(
+        projectConfig,
+        JSON.stringify({
+          mcpServers: {
+            project: { command: 'npx project-server' },
+            shared: { command: 'npx shared-project' },
+          },
+        })
+      );
+
+      // Create user-level config in a separate home dir
+      const homeDir = join(tempDir, 'home');
+      await mkdir(homeDir, { recursive: true });
+      const userConfig = join(homeDir, '.mcp_servers.json');
+      await writeFile(
+        userConfig,
+        JSON.stringify({
+          mcpServers: {
+            personal: { command: 'npx personal-server' },
+            shared: { command: 'npx shared-user' }, // This should override project
+          },
+        })
+      );
+
+      // Temporarily change working directory and home
+      const originalCwd = process.cwd();
+      const originalHome = process.env.HOME;
+      process.chdir(projectDir);
+      process.env.HOME = homeDir;
+
+      try {
+        // Clear any cached config path
+        delete process.env.MCP_CONFIG_PATH;
+
+        const config = await loadConfig();
+
+        // Should have all three servers
+        expect(config.mcpServers.project).toBeDefined();
+        expect(config.mcpServers.personal).toBeDefined();
+        expect(config.mcpServers.shared).toBeDefined();
+
+        // User config's 'shared' should override project config's 'shared'
+        expect((config.mcpServers.shared as any).command).toBe('npx shared-user');
+      } finally {
+        process.chdir(originalCwd);
+        process.env.HOME = originalHome;
+      }
     });
   });
 });
