@@ -174,6 +174,21 @@ describe('config', () => {
     });
   });
 
+    test('throws object-specific error on numeric server config', async () => {
+      const configPath = join(tempDir, 'number_server.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            numeric: 42,
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('Invalid server configuration for "numeric"');
+      await expect(loadConfig(configPath)).rejects.toThrow('Server config must be an object');
+    });
+
   describe('getServerConfig', () => {
     test('returns server config by name', async () => {
       const configPath = join(tempDir, 'config.json');
