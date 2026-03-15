@@ -227,6 +227,23 @@ describe('config', () => {
       expect(names).toContain('gamma');
       expect(names.length).toBe(3);
     });
+
+    test('preserves declaration order', async () => {
+      const configPath = join(tempDir, 'ordered_config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            zebra: { command: 'z' },
+            alpha: { command: 'a' },
+            middle: { url: 'https://example.com' },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      expect(listServerNames(config)).toEqual(['zebra', 'alpha', 'middle']);
+    });
   });
 
   describe('type guards', () => {
