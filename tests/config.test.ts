@@ -108,6 +108,52 @@ describe('config', () => {
       delete process.env.MCP_STRICT_ENV;
     });
 
+    test('treats MCP_STRICT_ENV=FALSE as non-strict mode', async () => {
+      process.env.MCP_STRICT_ENV = 'FALSE';
+
+      const configPath = join(tempDir, 'missing_env_uppercase_false.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              command: 'echo',
+              env: { TOKEN: '${UPPERCASE_FALSE_VAR}' },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      const server = config.mcpServers.test as any;
+      expect(server.env.TOKEN).toBe('');
+
+      delete process.env.MCP_STRICT_ENV;
+    });
+
+    test('treats MCP_STRICT_ENV=0 as non-strict mode', async () => {
+      process.env.MCP_STRICT_ENV = '0';
+
+      const configPath = join(tempDir, 'missing_env_zero.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              command: 'echo',
+              env: { TOKEN: '${ZERO_STRICT_VAR}' },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      const server = config.mcpServers.test as any;
+      expect(server.env.TOKEN).toBe('');
+
+      delete process.env.MCP_STRICT_ENV;
+    });
+
     test('throws error on missing env vars in strict mode (default)', async () => {
       // Ensure strict mode is enabled (default)
       delete process.env.MCP_STRICT_ENV;
