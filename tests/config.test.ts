@@ -172,6 +172,22 @@ describe('config', () => {
 
       await expect(loadConfig(configPath)).rejects.toThrow('Invalid server configuration');
     });
+
+    test('throws error on server with disabledTools but no command or url', async () => {
+      const configPath = join(tempDir, 'disabled_tools_only.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            badserver: {
+              disabledTools: ['write_*'],
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('missing required field');
+    });
   });
 
   describe('getServerConfig', () => {
