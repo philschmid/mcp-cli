@@ -108,6 +108,27 @@ describe('config', () => {
       delete process.env.MCP_STRICT_ENV;
     });
 
+    test('treats MCP_STRICT_ENV with surrounding-space false as strict mode', async () => {
+      process.env.MCP_STRICT_ENV = ' false ';
+
+      const configPath = join(tempDir, 'missing_env_false_surrounded_space.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              command: 'echo',
+              env: { TOKEN: '${NONEXISTENT_VAR}' },
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('Missing environment variable');
+
+      delete process.env.MCP_STRICT_ENV;
+    });
+
     test('throws error on missing env vars in strict mode (default)', async () => {
       // Ensure strict mode is enabled (default)
       delete process.env.MCP_STRICT_ENV;
