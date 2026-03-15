@@ -7,11 +7,12 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  loadConfig,
+  filterTools,
   getServerConfig,
-  listServerNames,
   isHttpServer,
   isStdioServer,
+  listServerNames,
+  loadConfig,
 } from '../src/config';
 
 describe('config', () => {
@@ -238,6 +239,22 @@ describe('config', () => {
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
+    });
+  });
+
+  describe('filterTools', () => {
+    test('escapes regex special characters in patterns as literals', () => {
+      const config = { command: 'echo', allowedTools: ['read.file'] } as any;
+      const tools = [
+        { name: 'read.file' },
+        { name: 'readXfile' },
+        { name: 'read_file' },
+      ];
+
+      // Pattern 'read.file' should be treated as literal dot, not regex "any char"
+      expect(filterTools(tools, config).map((tool) => tool.name)).toEqual([
+        'read.file',
+      ]);
     });
   });
 });
