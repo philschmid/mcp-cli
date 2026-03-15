@@ -7,11 +7,12 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  loadConfig,
+  getConfigHash,
   getServerConfig,
-  listServerNames,
   isHttpServer,
   isStdioServer,
+  listServerNames,
+  loadConfig,
 } from '../src/config';
 
 describe('config', () => {
@@ -238,6 +239,36 @@ describe('config', () => {
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
+    });
+  });
+
+  describe('config hash stability', () => {
+    test('produces the same hash for equivalent configs with different nested key order', () => {
+      const configA = {
+        url: 'https://example.com/sse',
+        headers: {
+          Authorization: 'Bearer token',
+          'X-Team': 'agents',
+        },
+        env: {
+          BETA: '2',
+          ALPHA: '1',
+        },
+      };
+
+      const configB = {
+        env: {
+          ALPHA: '1',
+          BETA: '2',
+        },
+        headers: {
+          'X-Team': 'agents',
+          Authorization: 'Bearer token',
+        },
+        url: 'https://example.com/sse',
+      };
+
+      expect(getConfigHash(configA as any)).toBe(getConfigHash(configB as any));
     });
   });
 });
