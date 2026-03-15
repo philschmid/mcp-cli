@@ -204,6 +204,20 @@ describe('config', () => {
       const config = await loadConfig(configPath);
       expect(() => getServerConfig(config, 'unknown')).toThrow('not found');
     });
+
+    test('throws a stable unknown-server error when no servers are configured', async () => {
+      const configPath = join(tempDir, 'empty_config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {},
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      expect(() => getServerConfig(config, 'unknown')).toThrow('unknown');
+      expect(() => getServerConfig(config, 'unknown')).toThrow('not found');
+    });
   });
 
   describe('listServerNames', () => {
