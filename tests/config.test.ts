@@ -192,6 +192,24 @@ describe('config', () => {
       expect((server as any).command).toBe('cmd1');
     });
 
+    test('returns a live server reference that mutates the underlying config', async () => {
+      const configPath = join(tempDir, 'live_reference_config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            server1: { command: 'cmd1' },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      const server = getServerConfig(config, 'server1') as any;
+      server.command = 'patched-cmd';
+
+      expect((config.mcpServers.server1 as any).command).toBe('patched-cmd');
+    });
+
     test('throws on unknown server', async () => {
       const configPath = join(tempDir, 'config.json');
       await writeFile(
