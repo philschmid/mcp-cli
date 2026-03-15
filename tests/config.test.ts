@@ -7,15 +7,17 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  loadConfig,
   getServerConfig,
-  listServerNames,
+  isDaemonEnabled,
   isHttpServer,
   isStdioServer,
+  listServerNames,
+  loadConfig,
 } from '../src/config';
 
 describe('config', () => {
   let tempDir: string;
+  const originalNoDaemon = process.env.MCP_NO_DAEMON;
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'mcp-cli-test-'));
@@ -23,6 +25,7 @@ describe('config', () => {
 
   afterEach(async () => {
     await rm(tempDir, { recursive: true, force: true });
+    process.env.MCP_NO_DAEMON = originalNoDaemon;
   });
 
   describe('loadConfig', () => {
@@ -238,6 +241,22 @@ describe('config', () => {
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
+    });
+  });
+
+  describe('daemon env flag parsing', () => {
+    test('disables daemon mode only when MCP_NO_DAEMON is set to 1', () => {
+      delete process.env.MCP_NO_DAEMON;
+      expect(isDaemonEnabled()).toBe(true);
+
+      process.env.MCP_NO_DAEMON = '0';
+      expect(isDaemonEnabled()).toBe(true);
+
+      process.env.MCP_NO_DAEMON = 'true';
+      expect(isDaemonEnabled()).toBe(true);
+
+      process.env.MCP_NO_DAEMON = '1';
+      expect(isDaemonEnabled()).toBe(false);
     });
   });
 });
