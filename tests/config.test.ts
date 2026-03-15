@@ -7,11 +7,14 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  loadConfig,
+  getPidPath,
   getServerConfig,
-  listServerNames,
+  getSocketDir,
+  getSocketPath,
   isHttpServer,
   isStdioServer,
+  listServerNames,
+  loadConfig,
 } from '../src/config';
 
 describe('config', () => {
@@ -238,6 +241,19 @@ describe('config', () => {
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
+    });
+  });
+
+  describe('daemon socket path helpers', () => {
+    test('build socket and pid paths under the shared socket dir', () => {
+      const socketDir = getSocketDir();
+      const socketPath = getSocketPath('alpha-server');
+      const pidPath = getPidPath('alpha-server');
+
+      expect(socketPath).toBe(join(socketDir, 'alpha-server.sock'));
+      expect(pidPath).toBe(join(socketDir, 'alpha-server.pid'));
+      expect(socketPath.startsWith(socketDir)).toBe(true);
+      expect(pidPath.startsWith(socketDir)).toBe(true);
     });
   });
 });
