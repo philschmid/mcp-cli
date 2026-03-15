@@ -7,15 +7,23 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  loadConfig,
+  DEFAULT_MAX_RETRIES,
+  DEFAULT_RETRY_DELAY_MS,
+  getMaxRetries,
+  getRetryDelayMs,
   getServerConfig,
-  listServerNames,
   isHttpServer,
   isStdioServer,
+  listServerNames,
+  loadConfig,
 } from '../src/config';
 
 describe('config', () => {
   let tempDir: string;
+  const originalEnv = {
+    MCP_MAX_RETRIES: process.env.MCP_MAX_RETRIES,
+    MCP_RETRY_DELAY: process.env.MCP_RETRY_DELAY,
+  };
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'mcp-cli-test-'));
@@ -23,6 +31,8 @@ describe('config', () => {
 
   afterEach(async () => {
     await rm(tempDir, { recursive: true, force: true });
+    process.env.MCP_MAX_RETRIES = originalEnv.MCP_MAX_RETRIES;
+    process.env.MCP_RETRY_DELAY = originalEnv.MCP_RETRY_DELAY;
   });
 
   describe('loadConfig', () => {
@@ -238,6 +248,28 @@ describe('config', () => {
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
+    });
+  });
+
+  describe('runtime retry env parsing', () => {
+    test('accepts zero retries to disable retry attempts', () => {
+      process.env.MCP_MAX_RETRIES = '0';
+
+      expect(getMaxRetries()).toBe(0);
+    });
+
+    test('falls back for invalid retry delay values', () => {
+      process.env.MCP_RETRY_DELAY = '0';
+      expect(getRetryDelayMs()).toBe(DEFAULT_RETRY_DELAY_MS);
+
+      process.env.MCP_RETRY_DELAY = 'oops';
+      expect(getRetryDelayMs()).toBe(DEFAULT_RETRY_DELAY_MS);
+    });
+
+    test('falls back for invalid negative retry counts', () => {
+      process.env.MCP_MAX_RETRIES = '-1';
+
+      expect(getMaxRetries()).toBe(DEFAULT_MAX_RETRIES);
     });
   });
 });
