@@ -192,6 +192,22 @@ describe('config', () => {
       expect((server as any).command).toBe('cmd1');
     });
 
+    test('returns the same server object reference stored in config', async () => {
+      const configPath = join(tempDir, 'reference_config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            server1: { command: 'cmd1', args: ['hello'] },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      const server = getServerConfig(config, 'server1');
+      expect(server).toBe(config.mcpServers.server1);
+    });
+
     test('throws on unknown server', async () => {
       const configPath = join(tempDir, 'config.json');
       await writeFile(
