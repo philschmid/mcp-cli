@@ -61,6 +61,19 @@ describe('config', () => {
       await expect(loadConfig(configPath)).rejects.toThrow('mcpServers');
     });
 
+    test('allows an empty mcpServers object', async () => {
+      const configPath = join(tempDir, 'empty_servers.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {},
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      expect(config.mcpServers).toEqual({});
+    });
+
     test('substitutes environment variables', async () => {
       process.env.TEST_MCP_TOKEN = 'secret123';
 
