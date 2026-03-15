@@ -159,6 +159,40 @@ describe('config', () => {
       await expect(loadConfig(configPath)).rejects.toThrow('both "command" and "url"');
     });
 
+    test('throws error on HTTP server config with cwd and url', async () => {
+      const configPath = join(tempDir, 'cwd_and_url.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            mixed: {
+              cwd: '/tmp/mcp-server',
+              url: 'https://example.com/sse',
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('stdio-only fields');
+    });
+
+    test('throws error on stdio server config with headers and command', async () => {
+      const configPath = join(tempDir, 'command_and_headers.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            mixed: {
+              command: 'echo',
+              headers: { Authorization: 'Bearer token' },
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('HTTP-only fields');
+    });
+
     test('throws error on null server config', async () => {
       const configPath = join(tempDir, 'null_server.json');
       await writeFile(

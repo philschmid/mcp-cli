@@ -494,6 +494,30 @@ export async function loadConfig(
         }),
       );
     }
+
+    if (hasUrl && ('cwd' in serverConfig || 'args' in serverConfig || 'env' in serverConfig)) {
+      throw new Error(
+        formatCliError({
+          code: ErrorCode.CLIENT_ERROR,
+          type: 'CONFIG_INVALID_SERVER',
+          message: `HTTP server "${serverName}" has stdio-only fields`,
+          details: 'HTTP servers support url, headers, timeout, allowedTools, and disabledTools only',
+          suggestion: 'Remove stdio-only fields like command args, env, or cwd from HTTP server configs',
+        }),
+      );
+    }
+
+    if (hasCommand && ('headers' in serverConfig || 'timeout' in serverConfig)) {
+      throw new Error(
+        formatCliError({
+          code: ErrorCode.CLIENT_ERROR,
+          type: 'CONFIG_INVALID_SERVER',
+          message: `Stdio server "${serverName}" has HTTP-only fields`,
+          details: 'Stdio servers support command, args, env, cwd, allowedTools, and disabledTools only',
+          suggestion: 'Remove HTTP-only fields like url, headers, or timeout from stdio server configs',
+        }),
+      );
+    }
   }
 
   // Substitute environment variables
