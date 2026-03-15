@@ -172,6 +172,22 @@ describe('config', () => {
 
       await expect(loadConfig(configPath)).rejects.toThrow('Invalid server configuration');
     });
+
+    test('throws error on server with cwd but no command', async () => {
+      const configPath = join(tempDir, 'cwd_only.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            badserver: {
+              cwd: '/tmp/mcp-server',
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('missing required field');
+    });
   });
 
   describe('getServerConfig', () => {
