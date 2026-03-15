@@ -204,6 +204,25 @@ describe('config', () => {
       const config = await loadConfig(configPath);
       expect(() => getServerConfig(config, 'unknown')).toThrow('not found');
     });
+
+    test('includes the requested name and available servers in unknown-server errors', async () => {
+      const configPath = join(tempDir, 'multi_server_config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            alpha: { command: 'cmd-a' },
+            beta: { command: 'cmd-b' },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+
+      expect(() => getServerConfig(config, 'missing')).toThrow('missing');
+      expect(() => getServerConfig(config, 'missing')).toThrow('alpha');
+      expect(() => getServerConfig(config, 'missing')).toThrow('beta');
+    });
   });
 
   describe('listServerNames', () => {
