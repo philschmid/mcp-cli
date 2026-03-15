@@ -227,6 +227,26 @@ describe('config', () => {
       expect(names).toContain('gamma');
       expect(names.length).toBe(3);
     });
+
+    test('returns an array that can be mutated without affecting config keys', async () => {
+      const configPath = join(tempDir, 'mutable_names_config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            alpha: { command: 'a' },
+            beta: { command: 'b' },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      const names = listServerNames(config);
+      names.pop();
+
+      expect(Object.keys(config.mcpServers)).toEqual(['alpha', 'beta']);
+      expect(listServerNames(config)).toEqual(['alpha', 'beta']);
+    });
   });
 
   describe('type guards', () => {
