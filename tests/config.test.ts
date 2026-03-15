@@ -7,11 +7,12 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  loadConfig,
+  filterTools,
   getServerConfig,
-  listServerNames,
   isHttpServer,
   isStdioServer,
+  listServerNames,
+  loadConfig,
 } from '../src/config';
 
 describe('config', () => {
@@ -238,6 +239,23 @@ describe('config', () => {
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
+    });
+  });
+
+  describe('filterTools', () => {
+    test('treats ? as a single-character wildcard in disabledTools patterns', () => {
+      const config = { command: 'echo', disabledTools: ['read_?ile'] } as any;
+      const tools = [
+        { name: 'read_file' },
+        { name: 'read_xile' },
+        { name: 'read_profile' },
+      ];
+
+      // disabledTools should deny read_file and read_xile (single char match)
+      // but allow read_profile (double char where ? only matches one)
+      expect(filterTools(tools, config).map((tool) => tool.name)).toEqual([
+        'read_profile',
+      ]);
     });
   });
 });
