@@ -7,15 +7,29 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  loadConfig,
+  DEFAULT_CONCURRENCY,
+  DEFAULT_DAEMON_TIMEOUT_SECONDS,
+  DEFAULT_MAX_RETRIES,
+  DEFAULT_TIMEOUT_MS,
+  getConcurrencyLimit,
+  getDaemonTimeoutMs,
+  getMaxRetries,
   getServerConfig,
-  listServerNames,
+  getTimeoutMs,
   isHttpServer,
   isStdioServer,
+  listServerNames,
+  loadConfig,
 } from '../src/config';
 
 describe('config', () => {
   let tempDir: string;
+  const originalEnv = {
+    MCP_TIMEOUT: process.env.MCP_TIMEOUT,
+    MCP_CONCURRENCY: process.env.MCP_CONCURRENCY,
+    MCP_MAX_RETRIES: process.env.MCP_MAX_RETRIES,
+    MCP_DAEMON_TIMEOUT: process.env.MCP_DAEMON_TIMEOUT,
+  };
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'mcp-cli-test-'));
@@ -23,6 +37,10 @@ describe('config', () => {
 
   afterEach(async () => {
     await rm(tempDir, { recursive: true, force: true });
+    process.env.MCP_TIMEOUT = originalEnv.MCP_TIMEOUT;
+    process.env.MCP_CONCURRENCY = originalEnv.MCP_CONCURRENCY;
+    process.env.MCP_MAX_RETRIES = originalEnv.MCP_MAX_RETRIES;
+    process.env.MCP_DAEMON_TIMEOUT = originalEnv.MCP_DAEMON_TIMEOUT;
   });
 
   describe('loadConfig', () => {
@@ -238,6 +256,24 @@ describe('config', () => {
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
+    });
+  });
+
+  describe('runtime env parsing', () => {
+    test('falls back to defaults for zero or invalid timeout-like env vars', () => {
+      process.env.MCP_TIMEOUT = '0';
+      process.env.MCP_DAEMON_TIMEOUT = 'nope';
+
+      expect(getTimeoutMs()).toBe(DEFAULT_TIMEOUT_MS);
+      expect(getDaemonTimeoutMs()).toBe(DEFAULT_DAEMON_TIMEOUT_SECONDS * 1000);
+    });
+
+    test('falls back to defaults for zero or invalid concurrency and retry env vars', () => {
+      process.env.MCP_CONCURRENCY = '0';
+      process.env.MCP_MAX_RETRIES = '-1';
+
+      expect(getConcurrencyLimit()).toBe(DEFAULT_CONCURRENCY);
+      expect(getMaxRetries()).toBe(DEFAULT_MAX_RETRIES);
     });
   });
 });
