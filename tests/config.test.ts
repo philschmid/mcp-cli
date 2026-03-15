@@ -235,9 +235,32 @@ describe('config', () => {
       expect(isHttpServer({ command: 'echo' })).toBe(false);
     });
 
+    test('isHttpServer still identifies HTTP configs when extra fields are present', () => {
+      expect(
+        isHttpServer({
+          url: 'https://example.com',
+          headers: { Authorization: 'Bearer token' },
+          timeout: 10,
+          allowedTools: ['read_*'],
+        } as any)
+      ).toBe(true);
+    });
+
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
+    });
+
+    test('isStdioServer still identifies stdio configs when extra fields are present', () => {
+      expect(
+        isStdioServer({
+          command: 'echo',
+          args: ['hello'],
+          env: { DEBUG: '1' },
+          cwd: '/tmp/mcp',
+          disabledTools: ['write_*'],
+        } as any)
+      ).toBe(true);
     });
   });
 });
