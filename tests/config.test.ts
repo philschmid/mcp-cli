@@ -7,11 +7,12 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  loadConfig,
+  filterTools,
   getServerConfig,
-  listServerNames,
   isHttpServer,
   isStdioServer,
+  listServerNames,
+  loadConfig,
 } from '../src/config';
 
 describe('config', () => {
@@ -238,6 +239,32 @@ describe('config', () => {
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
+    });
+  });
+
+  describe('env var substitution', () => {
+    test('substitutes empty string env vars without error', async () => {
+      process.env.TEST_EMPTY_VAR = '';
+
+      const configPath = join(tempDir, 'empty_env.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              command: 'echo',
+              args: ['${TEST_EMPTY_VAR}'],
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      const server = config.mcpServers.test as any;
+      // Empty string should be substituted, not treated as missing
+      expect(server.args[0]).toBe('');
+
+      delete process.env.TEST_EMPTY_VAR;
     });
   });
 });
