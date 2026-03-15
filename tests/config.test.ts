@@ -7,11 +7,12 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  loadConfig,
   getServerConfig,
-  listServerNames,
   isHttpServer,
   isStdioServer,
+  isToolAllowed,
+  listServerNames,
+  loadConfig,
 } from '../src/config';
 
 describe('config', () => {
@@ -238,6 +239,19 @@ describe('config', () => {
     test('isStdioServer identifies stdio config', () => {
       expect(isStdioServer({ command: 'echo' })).toBe(true);
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
+    });
+  });
+
+  describe('tool filtering', () => {
+    test('allows tools that match either literal or glob allowedTools entries', () => {
+      const serverConfig = {
+        command: 'echo',
+        allowedTools: ['search', 'read_*'],
+      } as any;
+
+      expect(isToolAllowed('search', serverConfig)).toBe(true);
+      expect(isToolAllowed('read_file', serverConfig)).toBe(true);
+      expect(isToolAllowed('write_file', serverConfig)).toBe(false);
     });
   });
 });
