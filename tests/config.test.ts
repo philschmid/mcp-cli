@@ -61,7 +61,7 @@ describe('config', () => {
       await expect(loadConfig(configPath)).rejects.toThrow('mcpServers');
     });
 
-    test('substitutes environment variables', async () => {
+    test('loads config without eagerly substituting environment variables', async () => {
       process.env.TEST_MCP_TOKEN = 'secret123';
 
       const configPath = join(tempDir, 'env_config.json');
@@ -79,9 +79,33 @@ describe('config', () => {
 
       const config = await loadConfig(configPath);
       const server = config.mcpServers.test as any;
-      expect(server.headers.Authorization).toBe('Bearer secret123');
+      expect(server.headers.Authorization).toBe('Bearer ${TEST_MCP_TOKEN}');
 
       delete process.env.TEST_MCP_TOKEN;
+    });
+
+    test('does not throw for unrelated servers with missing env vars', async () => {
+      delete process.env.UNRELATED_MISSING_VAR;
+
+      const configPath = join(tempDir, 'scoped_env_config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            safe: {
+              command: 'echo',
+            },
+            noisy: {
+              command: 'echo',
+              env: { TOKEN: '${UNRELATED_MISSING_VAR}' },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      expect(() => getServerConfig(config, 'safe')).not.toThrow();
+      expect(() => getServerConfig(config, 'noisy')).toThrow('MISSING_ENV_VAR');
     });
 
     test('handles missing env vars gracefully with MCP_STRICT_ENV=false', async () => {
@@ -102,8 +126,31 @@ describe('config', () => {
       );
 
       const config = await loadConfig(configPath);
-      const server = config.mcpServers.test as any;
+      const server = getServerConfig(config, 'test') as any;
       expect(server.env.TOKEN).toBe('');
+
+      delete process.env.MCP_STRICT_ENV;
+    });
+
+
+    test('treats MCP_STRICT_ENV with surrounding-CRLF trailing-tab true as strict mode', async () => {
+      process.env.MCP_STRICT_ENV = '\r\ntrue\t\r\n';
+
+      const configPath = join(tempDir, 'missing_env_trailing_tab_true_surrounded_crlf.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              command: 'echo',
+              env: { TOKEN: '${NONEXISTENT_VAR}' },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      expect(() => getServerConfig(config, 'test')).toThrow('Missing environment variable');
 
       delete process.env.MCP_STRICT_ENV;
     });
@@ -125,7 +172,8 @@ describe('config', () => {
         })
       );
 
-      await expect(loadConfig(configPath)).rejects.toThrow('MISSING_ENV_VAR');
+      const config = await loadConfig(configPath);
+      expect(() => getServerConfig(config, 'test')).toThrow('MISSING_ENV_VAR');
     });
 
     test('throws error on empty server config', async () => {

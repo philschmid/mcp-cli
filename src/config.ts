@@ -496,9 +496,6 @@ export async function loadConfig(
     }
   }
 
-  // Substitute environment variables
-  config = substituteEnvVarsInObject(config);
-
   return config;
 }
 
@@ -514,7 +511,7 @@ export function getServerConfig(
     const available = Object.keys(config.mcpServers);
     throw new Error(formatCliError(serverNotFoundError(serverName, available)));
   }
-  return server;
+  return substituteEnvVarsInObject(server);
 }
 
 /**
