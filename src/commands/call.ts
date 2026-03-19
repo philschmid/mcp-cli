@@ -37,6 +37,15 @@ export interface CallOptions {
   configPath?: string;
 }
 
+async function writeStdout(text: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    process.stdout.write(`${text}\n`, (error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
 /**
  * Parse target into server and tool name
  */
@@ -161,9 +170,10 @@ export async function callCommand(options: CallOptions): Promise<void> {
   try {
     const result = await connection.callTool(toolName, args);
 
-    // Extract text content from MCP response for CLI-friendly output
-    // Uses formatToolResult which extracts text from MCP content array
-    console.log(formatToolResult(result));
+    // Extract text content from MCP response for CLI-friendly output.
+    // Write directly to stdout and await the callback so large piped output
+    // does not get truncated if the process exits immediately afterwards.
+    await writeStdout(formatToolResult(result));
   } catch (error) {
     // Try to get available tools for better error message
     let availableTools: string[] | undefined;
