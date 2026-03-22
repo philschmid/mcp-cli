@@ -15,6 +15,7 @@ import {
   isTransientError,
   getTimeoutMs,
   getConcurrencyLimit,
+  shouldStreamServerStderr,
 } from '../src/client';
 
 describe('client', () => {
@@ -237,6 +238,33 @@ describe('client', () => {
     test('ignores negative values', () => {
       process.env.MCP_RETRY_DELAY = '-500';
       expect(getRetryDelayMs()).toBe(1000);
+    });
+  });
+
+  describe('shouldStreamServerStderr', () => {
+    const originalEnv = process.env.MCP_DEBUG;
+
+    afterEach(() => {
+      if (originalEnv !== undefined) {
+        process.env.MCP_DEBUG = originalEnv;
+      } else {
+        delete process.env.MCP_DEBUG;
+      }
+    });
+
+    test('returns false by default (quiet mode)', () => {
+      delete process.env.MCP_DEBUG;
+      expect(shouldStreamServerStderr()).toBe(false);
+    });
+
+    test('returns true when MCP_DEBUG=1', () => {
+      process.env.MCP_DEBUG = '1';
+      expect(shouldStreamServerStderr()).toBe(true);
+    });
+
+    test('returns true when MCP_DEBUG is set to any value', () => {
+      process.env.MCP_DEBUG = 'true';
+      expect(shouldStreamServerStderr()).toBe(true);
     });
   });
 

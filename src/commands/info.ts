@@ -40,14 +40,17 @@ function parseTarget(target: string): { server: string; tool?: string } {
 export async function infoCommand(options: InfoOptions): Promise<void> {
   let config: McpServersConfig;
 
+  const { server: serverName, tool: toolName } = parseTarget(options.target);
+
   try {
-    config = await loadConfig(options.configPath);
+    config = await loadConfig({
+      explicitPath: options.configPath,
+      serverNames: [serverName],
+    });
   } catch (error) {
     console.error((error as Error).message);
     process.exit(ErrorCode.CLIENT_ERROR);
   }
-
-  const { server: serverName, tool: toolName } = parseTarget(options.target);
 
   let serverConfig: ServerConfig;
   try {
