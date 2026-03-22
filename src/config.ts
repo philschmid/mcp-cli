@@ -56,6 +56,11 @@ export interface McpServersConfig {
   mcpServers: Record<string, ServerConfig>;
 }
 
+export interface LoadConfigOptions {
+  explicitPath?: string;
+  serverNames?: string[];
+}
+
 // ============================================================================
 // Tool Filtering
 // ============================================================================
@@ -397,13 +402,16 @@ function getDefaultConfigPaths(): string[] {
  * Load and parse MCP servers configuration
  */
 export async function loadConfig(
-  explicitPath?: string,
+  input?: string | LoadConfigOptions,
 ): Promise<McpServersConfig> {
+  const options: LoadConfigOptions =
+    typeof input === 'string' ? { explicitPath: input } : input ?? {};
+
   let configPath: string | undefined;
 
   // Check explicit path from argument or environment
-  if (explicitPath) {
-    configPath = resolve(explicitPath);
+  if (options.explicitPath) {
+    configPath = resolve(options.explicitPath);
   } else if (process.env.MCP_CONFIG_PATH) {
     configPath = resolve(process.env.MCP_CONFIG_PATH);
   }
@@ -496,8 +504,26 @@ export async function loadConfig(
     }
   }
 
-  // Substitute environment variables
-  config = substituteEnvVarsInObject(config);
+  // Substitute environment variables only for the relevant servers.
+  // This avoids warning about unrelated missing variables when a command
+  // targets a single server (for example: `mcp-cli info chrome-devtools`).
+  if (options.serverNames && options.serverNames.length > 0) {
+    const targetServers = new Set(options.serverNames);
+    const substitutedServers: Record<string, ServerConfig> = {};
+
+    for (const [serverName, serverConfig] of Object.entries(config.mcpServers)) {
+      substitutedServers[serverName] = targetServers.has(serverName)
+        ? substituteEnvVarsInObject(serverConfig)
+        : serverConfig;
+    }
+
+    config = {
+      ...config,
+      mcpServers: substitutedServers,
+    };
+  } else {
+    config = substituteEnvVarsInObject(config);
+  }
 
   return config;
 }

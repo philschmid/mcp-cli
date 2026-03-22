@@ -128,6 +128,35 @@ describe('config', () => {
       await expect(loadConfig(configPath)).rejects.toThrow('MISSING_ENV_VAR');
     });
 
+    test('only substitutes env vars for targeted servers', async () => {
+      delete process.env.MCP_STRICT_ENV;
+
+      const configPath = join(tempDir, 'targeted_env.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            chrome: {
+              command: 'echo',
+              args: ['ok'],
+            },
+            context7: {
+              command: 'echo',
+              env: { API_KEY: '${MISSING_CONTEXT7_API_KEY}' },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig({
+        explicitPath: configPath,
+        serverNames: ['chrome'],
+      });
+
+      expect((config.mcpServers.chrome as any).command).toBe('echo');
+      expect((config.mcpServers.context7 as any).env.API_KEY).toBe('${MISSING_CONTEXT7_API_KEY}');
+    });
+
     test('throws error on empty server config', async () => {
       const configPath = join(tempDir, 'empty_server.json');
       await writeFile(
