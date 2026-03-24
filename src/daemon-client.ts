@@ -22,6 +22,7 @@ import {
   removePidFile,
   removeSocketFile,
 } from './daemon.js';
+import { sendIpcRequest } from './ipc.js';
 
 // ============================================================================
 // Daemon Connection
@@ -55,40 +56,7 @@ async function sendRequest(
   socketPath: string,
   request: DaemonRequest,
 ): Promise<DaemonResponse> {
-  return new Promise((resolve, reject) => {
-    const socket = Bun.connect({
-      unix: socketPath,
-      socket: {
-        open(socket) {
-          socket.write(JSON.stringify(request));
-        },
-        data(socket, data) {
-          try {
-            const response = JSON.parse(data.toString().trim());
-            socket.end();
-            resolve(response);
-          } catch (err) {
-            socket.end();
-            reject(new Error('Invalid response from daemon'));
-          }
-        },
-        error(socket, error) {
-          reject(error);
-        },
-        close() {
-          // Connection closed
-        },
-        connectError(socket, error) {
-          reject(error);
-        },
-      },
-    });
-
-    // Timeout after 5 seconds (fast fallback to direct connection)
-    setTimeout(() => {
-      reject(new Error('Daemon request timeout'));
-    }, 5000);
-  });
+  return sendIpcRequest(socketPath, request) as Promise<DaemonResponse>;
 }
 
 /**

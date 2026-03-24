@@ -28,6 +28,7 @@ import {
   getSocketDir,
   getSocketPath,
 } from './config.js';
+import { createIpcServer } from './ipc.js';
 
 // ============================================================================
 // Types
@@ -348,26 +349,8 @@ export async function runDaemon(
 
   // Start Unix socket server
   try {
-    server = Bun.listen({
-      unix: socketPath,
-      socket: {
-        open(socket) {
-          activeConnections.add(socket);
-          debug(`[daemon:${serverName}] Client connected`);
-        },
-        async data(socket, data) {
-          const response = await handleRequest(data);
-          socket.write(`${JSON.stringify(response)}\n`);
-        },
-        close(socket) {
-          activeConnections.delete(socket);
-          debug(`[daemon:${serverName}] Client disconnected`);
-        },
-        error(socket, error) {
-          debug(`[daemon:${serverName}] Socket error: ${error.message}`);
-          activeConnections.delete(socket);
-        },
-      },
+    server = createIpcServer(socketPath, async (request) => {
+      return await handleRequest(Buffer.from(JSON.stringify(request)));
     });
 
     debug(`[daemon:${serverName}] Listening on ${socketPath}`);
