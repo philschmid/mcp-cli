@@ -6,6 +6,7 @@ import { describe, test, expect } from 'bun:test';
 import {
   formatServerList,
   formatSearchResults,
+  formatServerDetails,
   formatToolSchema,
   formatToolResult,
   formatJson,
@@ -98,6 +99,36 @@ describe('output', () => {
 
       const withoutDesc = formatSearchResults(results, false);
       expect(withoutDesc).toContain('Tool description');
+    });
+  });
+
+  describe('formatServerDetails', () => {
+    test('hides stdio arguments in server details', () => {
+      const output = formatServerDetails(
+        'github',
+        {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-github', 'ghp_secret123'],
+        },
+        []
+      );
+
+      expect(output).toContain('Command:');
+      expect(output).toContain('npx [3 args hidden]');
+      expect(output).not.toContain('@modelcontextprotocol/server-github');
+      expect(output).not.toContain('ghp_secret123');
+    });
+
+    test('shows bare command when no args are present', () => {
+      const output = formatServerDetails(
+        'custom',
+        {
+          command: 'my-server',
+        },
+        []
+      );
+
+      expect(output).toContain('Command: my-server');
     });
   });
 

@@ -98,6 +98,19 @@ export function formatSearchResults(
 }
 
 /**
+ * Format stdio command for safe display without leaking arguments.
+ */
+function formatSafeCommand(command: string, args?: string[]): string {
+  const argCount = args?.length ?? 0;
+
+  if (argCount === 0) {
+    return command;
+  }
+
+  return `${command} [${argCount} arg${argCount === 1 ? '' : 's'} hidden]`;
+}
+
+/**
  * Format server details
  */
 export function formatServerDetails(
@@ -119,7 +132,7 @@ export function formatServerDetails(
   } else {
     lines.push(`${color('Transport:', colors.bold)} stdio`);
     lines.push(
-      `${color('Command:', colors.bold)} ${config.command} ${(config.args || []).join(' ')}`,
+      `${color('Command:', colors.bold)} ${formatSafeCommand(config.command, config.args)}`,
     );
   }
 

@@ -156,6 +156,15 @@ describe('CLI Integration Tests', () => {
       expect(result.stdout).toContain('Tools');
     });
 
+    test('redacts stdio args from server details output', async () => {
+      const result = await runCli(['info', 'filesystem']);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Command: npx [3 args hidden]');
+      expect(result.stdout).not.toContain('@modelcontextprotocol/server-filesystem');
+      expect(result.stdout).not.toContain(tempDir);
+    });
+
 
     test('errors on unknown server', async () => {
       const result = await runCli(['info', 'nonexistent_server']);
