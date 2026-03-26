@@ -73,9 +73,8 @@ async function fetchServerTools(
     connection = await getConnection(serverName, serverConfig);
 
     const tools = await connection.listTools();
-    const instructions = await connection.getInstructions();
     debug(`${serverName}: loaded ${tools.length} tools`);
-    return { name: serverName, tools, instructions };
+    return { name: serverName, tools };
   } catch (error) {
     const errorMsg = (error as Error).message;
     debug(`${serverName}: connection failed - ${errorMsg}`);

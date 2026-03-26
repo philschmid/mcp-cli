@@ -15,6 +15,8 @@ import {
   isTransientError,
   getTimeoutMs,
   getConcurrencyLimit,
+  shouldStreamServerStderr,
+  listTools,
 } from '../src/client';
 
 describe('client', () => {
@@ -99,6 +101,39 @@ describe('client', () => {
       expect(isTransientError(new Error('Port 5029 is in use'))).toBe(false);
       // Should NOT match - network is just part of a word
       expect(isTransientError(new Error('social network tool failed'))).toBe(false);
+    });
+  });
+
+  describe('listTools pagination', () => {
+    test('collects tools across multiple pages when the server returns a nextCursor', async () => {
+      const pages = [
+        {
+          tools: [
+            { name: 'tool_a', description: 'A', inputSchema: {} },
+            { name: 'tool_b', description: 'B', inputSchema: {} },
+          ],
+          nextCursor: 'page-2',
+        },
+        {
+          tools: [
+            { name: 'tool_c', description: 'C', inputSchema: {} },
+          ],
+        },
+      ];
+
+      let callCount = 0;
+      const cursors: unknown[] = [];
+      const client = {
+        async listTools(params?: { cursor?: string }) {
+          cursors.push(params?.cursor);
+          return pages[callCount++];
+        },
+      } as any;
+
+      const tools = await listTools(client);
+
+      expect(tools.map((t) => t.name)).toEqual(['tool_a', 'tool_b', 'tool_c']);
+      expect(cursors).toEqual([undefined, 'page-2']);
     });
   });
 
@@ -237,6 +272,33 @@ describe('client', () => {
     test('ignores negative values', () => {
       process.env.MCP_RETRY_DELAY = '-500';
       expect(getRetryDelayMs()).toBe(1000);
+    });
+  });
+
+  describe('shouldStreamServerStderr', () => {
+    const originalEnv = process.env.MCP_DEBUG;
+
+    afterEach(() => {
+      if (originalEnv !== undefined) {
+        process.env.MCP_DEBUG = originalEnv;
+      } else {
+        delete process.env.MCP_DEBUG;
+      }
+    });
+
+    test('returns false by default (quiet mode)', () => {
+      delete process.env.MCP_DEBUG;
+      expect(shouldStreamServerStderr()).toBe(false);
+    });
+
+    test('returns true when MCP_DEBUG=1', () => {
+      process.env.MCP_DEBUG = '1';
+      expect(shouldStreamServerStderr()).toBe(true);
+    });
+
+    test('returns true when MCP_DEBUG is set to any value', () => {
+      process.env.MCP_DEBUG = 'true';
+      expect(shouldStreamServerStderr()).toBe(true);
     });
   });
 

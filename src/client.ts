@@ -155,6 +155,16 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Whether server stderr should be streamed live to the terminal.
+ *
+ * Default is quiet to avoid noisy MCP/LSP server logs polluting stdout/stderr
+ * for normal CLI use and AI-agent pipelines. Use MCP_DEBUG=1 to see live logs.
+ */
+export function shouldStreamServerStderr(): boolean {
+  return Boolean(process.env.MCP_DEBUG);
+}
+
+/**
  * Execute a function with retry logic for transient failures
  * Respects overall timeout budget from MCP_TIMEOUT
  */
@@ -244,14 +254,16 @@ export async function connectToServer(
       transport = createStdioTransport(config);
 
       // Capture stderr for debugging - attach BEFORE connect
-      // Always stream stderr immediately so auth prompts are visible
+      // Only stream stderr live in debug mode to avoid noisy servers polluting output
       const stderrStream = transport.stderr;
       if (stderrStream) {
         stderrStream.on('data', (chunk: Buffer) => {
           const text = chunk.toString();
           stderrChunks.push(text);
-          // Always stream stderr immediately so users can see auth prompts
-          process.stderr.write(`[${serverName}] ${text}`);
+          // In debug mode, show server stderr with server name prefix
+          if (shouldStreamServerStderr()) {
+            process.stderr.write(`[${serverName}] ${text}`);
+          }
         });
       }
     }
@@ -268,12 +280,14 @@ export async function connectToServer(
       throw error;
     }
 
-    // For successful connections, forward stderr to console
+    // For successful connections, forward stderr to console only in debug mode
     if (!isHttpServer(config)) {
       const stderrStream = (transport as StdioClientTransport).stderr;
       if (stderrStream) {
         stderrStream.on('data', (chunk: Buffer) => {
-          process.stderr.write(chunk);
+          if (shouldStreamServerStderr()) {
+            process.stderr.write(chunk);
+          }
         });
       }
     }
@@ -332,12 +346,22 @@ function createStdioTransport(config: StdioServerConfig): StdioClientTransport {
  */
 export async function listTools(client: Client): Promise<ToolInfo[]> {
   return withRetry(async () => {
-    const result = await client.listTools();
-    return result.tools.map((tool: Tool) => ({
-      name: tool.name,
-      description: tool.description,
-      inputSchema: tool.inputSchema as Record<string, unknown>,
-    }));
+    const allTools: ToolInfo[] = [];
+    let cursor: string | undefined;
+
+    do {
+      const result = await client.listTools(cursor ? { cursor } : undefined);
+      allTools.push(
+        ...result.tools.map((tool: Tool) => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema as Record<string, unknown>,
+        })),
+      );
+      cursor = result.nextCursor;
+    } while (cursor);
+
+    return allTools;
   }, 'list tools');
 }
 

@@ -103,7 +103,7 @@ mcp-cli [options] call <server> <tool> <json> Call tool with JSON arguments
 | Stream | Content |
 |--------|---------|
 | **stdout** | Tool results and human-readable info |
-| **stderr** | Errors and diagnostics |
+| **stderr** | Errors and diagnostics (plus live server logs only when `MCP_DEBUG=1`) |
 
 ### Commands
 
@@ -341,8 +341,8 @@ Restrict which tools are available from a server using `allowedTools` and `disab
 
 The CLI searches for configuration in this order:
 
-1. `MCP_CONFIG_PATH` environment variable
-2. `-c/--config` command line argument
+1. `-c/--config` command line argument
+2. `MCP_CONFIG_PATH` environment variable
 3. `./mcp_servers.json` (current directory)
 4. `~/.mcp_servers.json`
 5. `~/.config/mcp/mcp_servers.json`
@@ -352,7 +352,7 @@ The CLI searches for configuration in this order:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `MCP_CONFIG_PATH` | Path to config file | (none) |
-| `MCP_DEBUG` | Enable debug output | `false` |
+| `MCP_DEBUG` | Enable debug output and live stdio server stderr streaming | `false` |
 | `MCP_TIMEOUT` | Request timeout (seconds) | `1800` (30 min) |
 | `MCP_CONCURRENCY` | Servers processed in parallel (not a limit on total) | `5` |
 | `MCP_MAX_RETRIES` | Retry attempts for transient errors (0 = disable) | `3` |
@@ -373,6 +373,18 @@ Traditional MCP integration loads full tool schemas into the AI's context window
 - **Token efficient**: Minimal context overhead
 - **Shell composable**: Chain with `jq`, pipes, and scripts
 - **Scriptable**: AI can write shell scripts for complex workflows
+
+### Debug logging behavior
+
+By default, `mcp-cli` keeps successful stdio server stderr quiet so MCP/LSP startup banners do not pollute normal CLI output or agent pipelines.
+
+If you want to see live server logs while debugging a connection, enable `MCP_DEBUG`:
+
+```bash
+MCP_DEBUG=1 mcp-cli info filesystem
+```
+
+Connection failures still include captured server stderr in the final error message, even when debug mode is off.
 
 ### Option 1: System Prompt Integration
 
