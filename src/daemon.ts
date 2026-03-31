@@ -357,7 +357,19 @@ export async function runDaemon(
         },
         async data(socket, data) {
           const response = await handleRequest(data);
-          socket.write(`${JSON.stringify(response)}\n`);
+          const payload = `${JSON.stringify(response)}\n`;
+          // Write in chunks to handle large payloads that exceed socket buffer
+          let offset = 0;
+          while (offset < payload.length) {
+            const written = socket.write(payload.slice(offset));
+            if (written === 0) {
+              await new Promise((r) => setTimeout(r, 1));
+              continue;
+            }
+            offset += written;
+          }
+          socket.flush();
+          socket.end();
         },
         close(socket) {
           activeConnections.delete(socket);
