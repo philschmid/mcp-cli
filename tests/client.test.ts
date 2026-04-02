@@ -15,6 +15,7 @@ import {
   isTransientError,
   getTimeoutMs,
   getConcurrencyLimit,
+  listTools,
 } from '../src/client';
 
 describe('client', () => {
@@ -136,6 +137,51 @@ describe('client', () => {
     test('ignores zero', () => {
       process.env.MCP_TIMEOUT = '0';
       expect(getTimeoutMs()).toBe(1800000);
+    });
+  });
+
+  describe('listTools', () => {
+    test('collects all paginated tool pages', async () => {
+      const client = {
+        listTools: async (params?: { cursor?: string }) => {
+          if (!params?.cursor) {
+            return {
+              tools: [
+                {
+                  name: 'first-tool',
+                  description: 'first page',
+                  inputSchema: { type: 'object' },
+                },
+              ],
+              nextCursor: 'page-2',
+            };
+          }
+
+          expect(params.cursor).toBe('page-2');
+          return {
+            tools: [
+              {
+                name: 'second-tool',
+                description: 'second page',
+                inputSchema: { type: 'object', properties: { q: { type: 'string' } } },
+              },
+            ],
+          };
+        },
+      };
+
+      await expect(listTools(client as never)).resolves.toEqual([
+        {
+          name: 'first-tool',
+          description: 'first page',
+          inputSchema: { type: 'object' },
+        },
+        {
+          name: 'second-tool',
+          description: 'second page',
+          inputSchema: { type: 'object', properties: { q: { type: 'string' } } },
+        },
+      ]);
     });
   });
 
