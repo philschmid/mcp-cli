@@ -108,6 +108,36 @@ describe('config', () => {
       delete process.env.MCP_STRICT_ENV;
     });
 
+    test('scopes env substitution to targeted servers when requested', async () => {
+      delete process.env.MCP_STRICT_ENV;
+      process.env.TARGET_TOKEN = 'ok';
+
+      const configPath = join(tempDir, 'targeted_env.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            target: {
+              command: 'echo',
+              env: { TOKEN: '${TARGET_TOKEN}' },
+            },
+            other: {
+              command: 'echo',
+              env: { TOKEN: '${MISSING_OTHER_TOKEN}' },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath, ['target']);
+      const target = config.mcpServers.target as any;
+      const other = config.mcpServers.other as any;
+      expect(target.env.TOKEN).toBe('ok');
+      expect(other.env.TOKEN).toBe('${MISSING_OTHER_TOKEN}');
+
+      delete process.env.TARGET_TOKEN;
+    });
+
     test('throws error on missing env vars in strict mode (default)', async () => {
       // Ensure strict mode is enabled (default)
       delete process.env.MCP_STRICT_ENV;
