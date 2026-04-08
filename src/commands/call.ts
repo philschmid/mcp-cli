@@ -37,6 +37,32 @@ export interface CallOptions {
   configPath?: string;
 }
 
+async function writeStdout(text: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const output = text.endsWith('
+') ? text : `${text}
+`;
+    const handleError = (error: Error) => reject(error);
+
+    process.stdout.once('error', handleError);
+    const wrote = process.stdout.write(output, (error?: Error | null) => {
+      process.stdout.off('error', handleError);
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    });
+
+    if (!wrote) {
+      process.stdout.once('drain', () => {
+        process.stdout.off('error', handleError);
+        resolve();
+      });
+    }
+  });
+}
+
 /**
  * Parse target into server and tool name
  */
@@ -163,7 +189,7 @@ export async function callCommand(options: CallOptions): Promise<void> {
 
     // Extract text content from MCP response for CLI-friendly output
     // Uses formatToolResult which extracts text from MCP content array
-    console.log(formatToolResult(result));
+    await writeStdout(formatToolResult(result));
   } catch (error) {
     // Try to get available tools for better error message
     let availableTools: string[] | undefined;
