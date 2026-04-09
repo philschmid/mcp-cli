@@ -276,7 +276,16 @@ fi
 
 ### Config File Format
 
-The CLI uses `mcp_servers.json`, compatible with Claude Desktop, Gemini or VS Code:
+The CLI uses `mcp_servers.json`, compatible with Claude Desktop, Gemini or VS Code.
+You can also attach the bundled JSON Schema for editor validation/autocomplete:
+
+```json
+{
+  "$schema": "./mcp_servers.schema.json",
+  "mcpServers": {
+```
+
+Full example:
 
 ```json
 {

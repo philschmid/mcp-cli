@@ -56,6 +56,16 @@ async function sendRequest(
   request: DaemonRequest,
 ): Promise<DaemonResponse> {
   return new Promise((resolve, reject) => {
+    let buffer = '';
+    let settled = false;
+
+    const finish = (fn: () => void) => {
+      if (!settled) {
+        settled = true;
+        fn();
+      }
+    };
+
     const socket = Bun.connect({
       unix: socketPath,
       socket: {
@@ -63,30 +73,41 @@ async function sendRequest(
           socket.write(JSON.stringify(request));
         },
         data(socket, data) {
+          buffer += data.toString();
+          const newlineIndex = buffer.indexOf('
+');
+          if (newlineIndex === -1) {
+            return;
+          }
+
           try {
-            const response = JSON.parse(data.toString().trim());
-            socket.end();
-            resolve(response);
-          } catch (err) {
-            socket.end();
-            reject(new Error('Invalid response from daemon'));
+            const response = JSON.parse(buffer.slice(0, newlineIndex).trim());
+            finish(() => {
+              socket.end();
+              resolve(response);
+            });
+          } catch {
+            finish(() => {
+              socket.end();
+              reject(new Error('Invalid response from daemon'));
+            });
           }
         },
         error(socket, error) {
-          reject(error);
+          finish(() => reject(error));
         },
         close() {
           // Connection closed
         },
         connectError(socket, error) {
-          reject(error);
+          finish(() => reject(error));
         },
       },
     });
 
     // Timeout after 5 seconds (fast fallback to direct connection)
     setTimeout(() => {
-      reject(new Error('Daemon request timeout'));
+      finish(() => reject(new Error('Daemon request timeout')));
     }, 5000);
   });
 }
