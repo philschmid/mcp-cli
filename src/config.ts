@@ -398,6 +398,7 @@ function getDefaultConfigPaths(): string[] {
  */
 export async function loadConfig(
   explicitPath?: string,
+  targetServers?: string[],
 ): Promise<McpServersConfig> {
   let configPath: string | undefined;
 
@@ -497,7 +498,22 @@ export async function loadConfig(
   }
 
   // Substitute environment variables
-  config = substituteEnvVarsInObject(config);
+  if (targetServers && targetServers.length > 0) {
+    const targetSet = new Set(targetServers);
+    config = {
+      ...config,
+      mcpServers: Object.fromEntries(
+        Object.entries(config.mcpServers).map(([serverName, serverConfig]) => [
+          serverName,
+          targetSet.has(serverName)
+            ? substituteEnvVarsInObject(serverConfig)
+            : serverConfig,
+        ]),
+      ),
+    };
+  } else {
+    config = substituteEnvVarsInObject(config);
+  }
 
   return config;
 }
