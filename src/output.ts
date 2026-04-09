@@ -2,6 +2,7 @@
  * Output formatting utilities
  */
 
+import { basename } from 'node:path';
 import type { ToolInfo } from './client.js';
 import type { ServerConfig } from './config.js';
 import { isHttpServer } from './config.js';
@@ -117,10 +118,12 @@ export function formatServerDetails(
     lines.push(`${color('Transport:', colors.bold)} HTTP`);
     lines.push(`${color('URL:', colors.bold)} ${config.url}`);
   } else {
+    const argCount = config.args?.length || 0;
+    const commandLabel = basename(config.command);
+    const argSuffix = argCount > 0 ? ` (${argCount} arg${argCount === 1 ? '' : 's'} hidden)` : '';
+
     lines.push(`${color('Transport:', colors.bold)} stdio`);
-    lines.push(
-      `${color('Command:', colors.bold)} ${config.command} ${(config.args || []).join(' ')}`,
-    );
+    lines.push(`${color('Command:', colors.bold)} ${commandLabel}${argSuffix}`);
   }
 
   if (instructions) {

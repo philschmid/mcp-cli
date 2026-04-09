@@ -348,22 +348,35 @@ export async function runDaemon(
 
   // Start Unix socket server
   try {
+    const requestBuffers = new Map<unknown, string>();
+
     server = Bun.listen({
       unix: socketPath,
       socket: {
         open(socket) {
           activeConnections.add(socket);
+          requestBuffers.set(socket, '');
           debug(`[daemon:${serverName}] Client connected`);
         },
         async data(socket, data) {
-          const response = await handleRequest(data);
+          const buffered = (requestBuffers.get(socket) || '') + data.toString();
+          const newlineIndex = buffered.indexOf('\n');
+          if (newlineIndex === -1) {
+            requestBuffers.set(socket, buffered);
+            return;
+          }
+
+          requestBuffers.set(socket, buffered.slice(newlineIndex + 1));
+          const response = await handleRequest(Buffer.from(buffered.slice(0, newlineIndex)));
           socket.write(`${JSON.stringify(response)}\n`);
         },
         close(socket) {
+          requestBuffers.delete(socket);
           activeConnections.delete(socket);
           debug(`[daemon:${serverName}] Client disconnected`);
         },
         error(socket, error) {
+          requestBuffers.delete(socket);
           debug(`[daemon:${serverName}] Socket error: ${error.message}`);
           activeConnections.delete(socket);
         },

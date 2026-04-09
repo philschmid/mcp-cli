@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/philschmid/mcp-cli/raw/main/mcp_servers.schema.json",
+  "title": "mcp-cli configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mcpServers"],
+  "properties": {
+    "mcpServers": {
+      "type": "object",
+      "description": "Configured MCP servers keyed by server name.",
+      "additionalProperties": {
+        "$ref": "#/$defs/serverConfig"
+      }
+    }
+  },
+  "$defs": {
+    "baseServerConfig": {
+      "type": "object",
+      "properties": {
+        "allowedTools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns for tools to allow."
+        },
+        "disabledTools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns for tools to exclude."
+        }
+      }
+    },
+    "stdioServerConfig": {
+      "allOf": [
+        { "$ref": "#/$defs/baseServerConfig" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["command"],
+          "properties": {
+            "command": { "type": "string" },
+            "args": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "env": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "cwd": { "type": "string" },
+            "allowedTools": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "disabledTools": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "not": { "required": ["url"] }
+        }
+      ]
+    },
+    "httpServerConfig": {
+      "allOf": [
+        { "$ref": "#/$defs/baseServerConfig" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "headers": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "allowedTools": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "disabledTools": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "not": { "required": ["command"] }
+        }
+      ]
+    },
+    "serverConfig": {
+      "oneOf": [
+        { "$ref": "#/$defs/stdioServerConfig" },
+        { "$ref": "#/$defs/httpServerConfig" }
+      ]
+    }
+  }
+}

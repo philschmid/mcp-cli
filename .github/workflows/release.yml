@@ -11,27 +11,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
-      
+
       - name: Type check
         run: bun run typecheck
-      
+
       - name: Lint
         run: bun run lint
-      
+
       - name: Run unit tests
         run: bun test tests/config.test.ts tests/output.test.ts tests/client.test.ts tests/errors.test.ts
-      
+
       - name: Run integration tests
         run: bun test --timeout 60000 tests/integration/
 
@@ -41,23 +41,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
-      
+
       - name: Build Linux x64
         run: bun build --compile --minify --target=bun-linux-x64 src/index.ts --outfile dist/mcp-cli-linux-x64
-      
+
+      - name: Build Linux ARM64
+        run: bun build --compile --minify --target=bun-linux-arm64 src/index.ts --outfile dist/mcp-cli-linux-arm64
+
       - name: Build macOS x64
         run: bun build --compile --minify --target=bun-darwin-x64 src/index.ts --outfile dist/mcp-cli-darwin-x64
-      
+
       - name: Build macOS ARM64
         run: bun build --compile --minify --target=bun-darwin-arm64 src/index.ts --outfile dist/mcp-cli-darwin-arm64
-      
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -72,22 +75,22 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: binaries
           path: dist/
-      
+
       - name: Generate checksums
         run: |
           cd dist
           sha256sum * > checksums.txt
-      
+
       - name: Get version from tag
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-      
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -95,6 +98,7 @@ jobs:
           generate_release_notes: true
           files: |
             dist/mcp-cli-linux-x64
+            dist/mcp-cli-linux-arm64
             dist/mcp-cli-darwin-x64
             dist/mcp-cli-darwin-arm64
             dist/checksums.txt
