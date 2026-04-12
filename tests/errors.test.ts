@@ -120,6 +120,16 @@ describe('errors', () => {
       const error = serverConnectionError('remote', '401 Unauthorized');
       expect(error.suggestion).toContain('Authorization header');
     });
+
+    test('serverConnectionError detects stateful server profile lock hints', () => {
+      const error = serverConnectionError(
+        'chrome-devtools',
+        'The browser is already running for /tmp/chrome-profile. Use --isolated to run multiple browser instances.',
+      );
+      expect(error.suggestion).toContain('daemon mode');
+      expect(error.suggestion).toContain('--isolated');
+      expect(error.suggestion).toContain('same server connection');
+    });
   });
 
   describe('tool errors', () => {

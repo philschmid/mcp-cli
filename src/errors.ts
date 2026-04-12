@@ -134,6 +134,13 @@ export function serverConnectionError(
   } else if (cause.includes('ETIMEDOUT') || cause.includes('timeout')) {
     suggestion =
       'Connection timed out. Check network connectivity and server availability';
+  } else if (
+    cause.includes('already running') ||
+    cause.includes('profile is locked') ||
+    cause.includes('Use --isolated')
+  ) {
+    suggestion =
+      'This looks like a stateful server reusing a locked profile. Keep daemon mode enabled so mcp-cli can reuse the same server connection, and only use --isolated when you intentionally want a separate fresh instance.';
   } else if (cause.includes('401') || cause.includes('Unauthorized')) {
     suggestion = 'Authentication required. Add Authorization header to config';
   } else if (cause.includes('403') || cause.includes('Forbidden')) {
