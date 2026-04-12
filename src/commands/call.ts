@@ -110,13 +110,6 @@ async function parseArgs(
 export async function callCommand(options: CallOptions): Promise<void> {
   let config: McpServersConfig;
 
-  try {
-    config = await loadConfig(options.configPath);
-  } catch (error) {
-    console.error((error as Error).message);
-    process.exit(ErrorCode.CLIENT_ERROR);
-  }
-
   let serverName: string;
   let toolName: string;
 
@@ -128,6 +121,16 @@ export async function callCommand(options: CallOptions): Promise<void> {
     console.error((error as Error).message);
     process.exit(ErrorCode.CLIENT_ERROR);
   }
+
+  try {
+    config = await loadConfig({
+      explicitPath: options.configPath,
+      serverNames: [serverName],
+    });
+  } catch (error) {
+     console.error((error as Error).message);
+     process.exit(ErrorCode.CLIENT_ERROR);
+   }
 
   let serverConfig: ServerConfig;
   try {

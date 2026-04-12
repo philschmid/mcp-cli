@@ -2,9 +2,31 @@
  * Output formatting utilities
  */
 
+import { basename } from 'node:path';
 import type { ToolInfo } from './client.js';
 import type { ServerConfig } from './config.js';
 import { isHttpServer } from './config.js';
+
+function redactSensitiveUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+
+    if (url.username || url.password) {
+      url.username = url.username ? '***' : '';
+      url.password = url.password ? '***' : '';
+    }
+
+    for (const key of url.searchParams.keys()) {
+      if (/(token|key|secret|pass|auth)/i.test(key)) {
+        url.searchParams.set(key, '***');
+      }
+    }
+
+    return url.toString();
+  } catch {
+    return rawUrl;
+  }
+}
 
 // ANSI color codes
 const colors = {
@@ -115,12 +137,14 @@ export function formatServerDetails(
 
   if (isHttpServer(config)) {
     lines.push(`${color('Transport:', colors.bold)} HTTP`);
-    lines.push(`${color('URL:', colors.bold)} ${config.url}`);
+    lines.push(`${color('URL:', colors.bold)} ${redactSensitiveUrl(config.url)}`);
   } else {
+    const argCount = config.args?.length || 0;
+    const commandLabel = basename(config.command);
+    const argSuffix = argCount > 0 ? ` (${argCount} arg${argCount === 1 ? '' : 's'} hidden)` : '';
+
     lines.push(`${color('Transport:', colors.bold)} stdio`);
-    lines.push(
-      `${color('Command:', colors.bold)} ${config.command} ${(config.args || []).join(' ')}`,
-    );
+    lines.push(`${color('Command:', colors.bold)} ${commandLabel}${argSuffix}`);
   }
 
   if (instructions) {

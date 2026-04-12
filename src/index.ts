@@ -388,10 +388,11 @@ Environment Variables:
 
 Config File:
   The CLI looks for mcp_servers.json in:
-    1. Path specified by MCP_CONFIG_PATH or -c/--config
-    2. ./mcp_servers.json (current directory)
-    3. ~/.mcp_servers.json
-    4. ~/.config/mcp/mcp_servers.json
+    1. Path specified by -c/--config
+    2. Path specified by MCP_CONFIG_PATH
+    3. ./mcp_servers.json (current directory)
+    4. ~/.mcp_servers.json
+    5. ~/.config/mcp/mcp_servers.json
 `);
 }
 
