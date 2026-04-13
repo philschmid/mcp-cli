@@ -115,12 +115,8 @@ export function formatServerDetails(
 
   if (isHttpServer(config)) {
     lines.push(`${color('Transport:', colors.bold)} HTTP`);
-    lines.push(`${color('URL:', colors.bold)} ${config.url}`);
   } else {
     lines.push(`${color('Transport:', colors.bold)} stdio`);
-    lines.push(
-      `${color('Command:', colors.bold)} ${config.command} ${(config.args || []).join(' ')}`,
-    );
   }
 
   if (instructions) {

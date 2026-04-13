@@ -4,6 +4,7 @@
 
 import { describe, test, expect } from 'bun:test';
 import {
+  formatServerDetails,
   formatServerList,
   formatSearchResults,
   formatToolSchema,
@@ -98,6 +99,41 @@ describe('output', () => {
 
       const withoutDesc = formatSearchResults(results, false);
       expect(withoutDesc).toContain('Tool description');
+    });
+  });
+
+  describe('formatServerDetails', () => {
+    test('shows transport without stdio command details', () => {
+      const output = formatServerDetails(
+        'filesystem',
+        {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
+        },
+        [],
+      );
+
+      expect(output).toContain('Server:');
+      expect(output).toContain('filesystem');
+      expect(output).toContain('Transport:');
+      expect(output).toContain('stdio');
+      expect(output).not.toContain('Command:');
+      expect(output).not.toContain('@modelcontextprotocol/server-filesystem');
+    });
+
+    test('shows transport without http endpoint details', () => {
+      const output = formatServerDetails(
+        'deepwiki',
+        { url: 'https://mcp.deepwiki.com/mcp' },
+        [],
+      );
+
+      expect(output).toContain('Server:');
+      expect(output).toContain('deepwiki');
+      expect(output).toContain('Transport:');
+      expect(output).toContain('HTTP');
+      expect(output).not.toContain('URL:');
+      expect(output).not.toContain('https://mcp.deepwiki.com/mcp');
     });
   });
 
