@@ -356,11 +356,11 @@ Usage:
   mcp-cli [options] call <server> <tool>         Call tool (reads JSON from stdin if no args)
   mcp-cli [options] call <server> <tool> <json>  Call tool with JSON arguments
 
-Formats (both work):
-  mcp-cli info server tool                       Space-separated
-  mcp-cli info server/tool                       Slash-separated
-  mcp-cli call server tool '{}'                  Space-separated
-  mcp-cli call server/tool '{}'                  Slash-separated
+Formats (space-separated is the primary form):
+  mcp-cli info server tool                       Primary form
+  mcp-cli info server/tool                       Also supported
+  mcp-cli call server tool '{}'                  Primary form
+  mcp-cli call server/tool '{}'                  Also supported
 
 Options:
   -h, --help               Show this help message

@@ -224,8 +224,8 @@ export function invalidTargetError(target: string): CliError {
     code: ErrorCode.CLIENT_ERROR,
     type: 'INVALID_TARGET',
     message: `Invalid target format: "${target}"`,
-    details: 'Expected format: server/tool',
-    suggestion: `Use 'mcp-cli <server>/<tool> <json>' format, e.g., 'mcp-cli github/search_repos \'{"query":"mcp"}\''`,
+    details: 'Expected a server/tool target (or separate <server> <tool> arguments after the subcommand)',
+    suggestion: `Use 'mcp-cli call <server> <tool> <json>' format, e.g., 'mcp-cli call github search_repos \'{"query":"mcp"}\''`,
   };
 }
 
