@@ -184,9 +184,9 @@ export function toolExecutionError(
 
   // Detect common MCP error patterns
   if (cause.includes('validation') || cause.includes('invalid_type')) {
-    suggestion = `Run 'mcp-cli ${serverName}/${toolName}' to see the input schema, then fix arguments`;
+    suggestion = `Run 'mcp-cli info ${serverName} ${toolName}' to see the input schema, then fix arguments`;
   } else if (cause.includes('required')) {
-    suggestion = `Missing required argument. Run 'mcp-cli ${serverName}/${toolName}' to see required fields`;
+    suggestion = `Missing required argument. Run 'mcp-cli info ${serverName} ${toolName}' to see required fields`;
   } else if (cause.includes('permission') || cause.includes('denied')) {
     suggestion = 'Permission denied. Check file/resource permissions';
   } else if (cause.includes('not found') || cause.includes('ENOENT')) {
