@@ -68,7 +68,7 @@ export function configSearchError(): CliError {
     details:
       'Searched: ./mcp_servers.json, ~/.mcp_servers.json, ~/.config/mcp/mcp_servers.json',
     suggestion:
-      'Create mcp_servers.json in current directory or use -c/--config to specify path',
+      'Create mcp_servers.json in the current directory, ~/.mcp_servers.json, or ~/.config/mcp/mcp_servers.json, or use -c/--config to specify a path',
   };
 }
 

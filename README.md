@@ -33,7 +33,7 @@ bun install -g https://github.com/philschmid/mcp-cli
 
 ### 2. Create a config file
 
-Create `mcp_servers.json` in your current directory or `~/.config/mcp/`:
+Create `mcp_servers.json` in your current directory, `~/.mcp_servers.json`, or `~/.config/mcp/mcp_servers.json`:
 
 ```json
 {
