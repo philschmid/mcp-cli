@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/philschmid/mcp-cli/main/mcp_servers.schema.json",
+  "title": "mcp-cli configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mcpServers"],
+  "properties": {
+    "mcpServers": {
+      "type": "object",
+      "description": "Named MCP server definitions.",
+      "additionalProperties": { "$ref": "#/$defs/serverConfig" }
+    }
+  },
+  "$defs": {
+    "globArray": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "baseServerConfig": {
+      "type": "object",
+      "properties": {
+        "allowedTools": {
+          "$ref": "#/$defs/globArray",
+          "description": "Optional glob patterns for tools to allow."
+        },
+        "disabledTools": {
+          "$ref": "#/$defs/globArray",
+          "description": "Optional glob patterns for tools to exclude."
+        }
+      }
+    },
+    "stdioServerConfig": {
+      "allOf": [
+        { "$ref": "#/$defs/baseServerConfig" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["command"],
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "Executable used to start the MCP server."
+            },
+            "args": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Optional command-line arguments passed to the server."
+            },
+            "env": {
+              "$ref": "#/$defs/stringMap",
+              "description": "Optional environment variables passed to the stdio server process."
+            },
+            "cwd": {
+              "type": "string",
+              "description": "Optional working directory used when launching the stdio server."
+            },
+            "allowedTools": { "$ref": "#/$defs/globArray" },
+            "disabledTools": { "$ref": "#/$defs/globArray" }
+          }
+        }
+      ]
+    },
+    "httpServerConfig": {
+      "allOf": [
+        { "$ref": "#/$defs/baseServerConfig" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "HTTP endpoint for the remote MCP server."
+            },
+            "headers": {
+              "$ref": "#/$defs/stringMap",
+              "description": "Optional HTTP headers sent when connecting to the MCP server."
+            },
+            "timeout": {
+              "type": "number",
+              "description": "Optional per-request timeout in milliseconds."
+            },
+            "allowedTools": { "$ref": "#/$defs/globArray" },
+            "disabledTools": { "$ref": "#/$defs/globArray" }
+          }
+        }
+      ]
+    },
+    "serverConfig": {
+      "oneOf": [
+        { "$ref": "#/$defs/stdioServerConfig" },
+        { "$ref": "#/$defs/httpServerConfig" }
+      ]
+    }
+  }
+}

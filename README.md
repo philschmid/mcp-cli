@@ -276,7 +276,28 @@ fi
 
 ### Config File Format
 
-The CLI uses `mcp_servers.json`, compatible with Claude Desktop, Gemini or VS Code:
+The CLI uses `mcp_servers.json`, compatible with Claude Desktop, Gemini or VS Code.
+A JSON Schema is included at the repo root as [`mcp_servers.schema.json`](./mcp_servers.schema.json) for editor validation/autocomplete.
+
+### JSON Schema / editor integration
+
+If your editor supports JSON Schema associations, point `mcp_servers.json` at the published raw file:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/philschmid/mcp-cli/main/mcp_servers.schema.json",
+  "mcpServers": {
+    "local-server": {
+      "command": "node",
+      "args": ["./server.js"]
+    }
+  }
+}
+```
+
+Then your editor can validate fields like `command`, `args`, `url`, `headers`, `allowedTools`, and `disabledTools` while you edit the config.
+
+The config file itself looks like this:
 
 ```json
 {
@@ -346,6 +367,8 @@ The CLI searches for configuration in this order:
 3. `./mcp_servers.json` (current directory)
 4. `~/.mcp_servers.json`
 5. `~/.config/mcp/mcp_servers.json`
+
+If you use a local config file in the project root, adding the `$schema` field shown above gives you immediate editor feedback before running `mcp-cli`.
 
 ### Environment Variables
 
