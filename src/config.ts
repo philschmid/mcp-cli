@@ -379,6 +379,15 @@ function substituteEnvVarsInObject<T>(obj: T): T {
 /**
  * Get default config search paths
  */
+function mergeConfigs(configs: McpServersConfig[]): McpServersConfig {
+  return {
+    mcpServers: Object.assign(
+      {},
+      ...configs.map((config) => config.mcpServers),
+    ),
+  };
+}
+
 function getDefaultConfigPaths(): string[] {
   const paths: string[] = [];
   const home = homedir();
@@ -399,52 +408,53 @@ function getDefaultConfigPaths(): string[] {
 export async function loadConfig(
   explicitPath?: string,
 ): Promise<McpServersConfig> {
-  let configPath: string | undefined;
+  let configPaths: string[] = [];
 
   // Check explicit path from argument or environment
   if (explicitPath) {
-    configPath = resolve(explicitPath);
-  } else if (process.env.MCP_CONFIG_PATH) {
-    configPath = resolve(process.env.MCP_CONFIG_PATH);
-  }
-
-  // If explicit path provided, it must exist
-  if (configPath) {
+    const configPath = resolve(explicitPath);
     if (!existsSync(configPath)) {
       throw new Error(formatCliError(configNotFoundError(configPath)));
     }
-  } else {
-    // Search default paths
-    const searchPaths = getDefaultConfigPaths();
-    for (const path of searchPaths) {
-      if (existsSync(path)) {
-        configPath = path;
-        break;
-      }
+    configPaths = [configPath];
+  } else if (process.env.MCP_CONFIG_PATH) {
+    const configPath = resolve(process.env.MCP_CONFIG_PATH);
+    if (!existsSync(configPath)) {
+      throw new Error(formatCliError(configNotFoundError(configPath)));
     }
-
-    if (!configPath) {
+    configPaths = [configPath];
+  } else {
+    configPaths = getDefaultConfigPaths().filter((path) => existsSync(path));
+    if (configPaths.length === 0) {
       throw new Error(formatCliError(configSearchError()));
     }
   }
 
-  // Read and parse config
-  const file = Bun.file(configPath);
-  const content = await file.text();
+  const parsedConfigs: McpServersConfig[] = [];
+  for (const configPath of configPaths) {
+    const file = Bun.file(configPath);
+    const content = await file.text();
 
-  let config: McpServersConfig;
-  try {
-    config = JSON.parse(content);
-  } catch (e) {
-    throw new Error(
-      formatCliError(configInvalidJsonError(configPath, (e as Error).message)),
-    );
+    let config: McpServersConfig;
+    try {
+      config = JSON.parse(content);
+    } catch (e) {
+      throw new Error(
+        formatCliError(
+          configInvalidJsonError(configPath, (e as Error).message),
+        ),
+      );
+    }
+
+    // Validate structure
+    if (!config.mcpServers || typeof config.mcpServers !== 'object') {
+      throw new Error(formatCliError(configMissingFieldError(configPath)));
+    }
+
+    parsedConfigs.push(config);
   }
 
-  // Validate structure
-  if (!config.mcpServers || typeof config.mcpServers !== 'object') {
-    throw new Error(formatCliError(configMissingFieldError(configPath)));
-  }
+  let config = mergeConfigs(parsedConfigs);
 
   // Warn if no servers are configured
   if (Object.keys(config.mcpServers).length === 0) {

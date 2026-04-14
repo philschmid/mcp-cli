@@ -3,7 +3,7 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -34,12 +34,86 @@ describe('config', () => {
           mcpServers: {
             test: { command: 'echo', args: ['hello'] },
           },
-        })
+        }),
       );
 
       const config = await loadConfig(configPath);
       expect(config.mcpServers.test).toBeDefined();
       expect((config.mcpServers.test as any).command).toBe('echo');
+    });
+
+    test('merges default config files from home and current directory', async () => {
+      const originalCwd = process.cwd();
+      const originalHome = process.env.HOME;
+      const workspaceDir = join(tempDir, 'workspace');
+      const homeDir = join(tempDir, 'home');
+      await mkdir(join(homeDir, '.config', 'mcp'), { recursive: true });
+      await mkdir(workspaceDir, { recursive: true });
+      await writeFile(
+        join(homeDir, '.config', 'mcp', 'mcp_servers.json'),
+        JSON.stringify({
+          mcpServers: {
+            personal: { command: 'todoist-mcp' },
+            shared: { command: 'personal-gh' },
+          },
+        }),
+      );
+      await writeFile(
+        join(workspaceDir, 'mcp_servers.json'),
+        JSON.stringify({
+          mcpServers: {
+            project: { command: 'playwright-mcp' },
+            shared: { command: 'company-gh' },
+          },
+        }),
+      );
+      process.env.HOME = homeDir;
+      process.chdir(workspaceDir);
+
+      const config = await loadConfig();
+      expect(Object.keys(config.mcpServers).sort()).toEqual([
+        'personal',
+        'project',
+        'shared',
+      ]);
+      expect((config.mcpServers.shared as any).command).toBe('company-gh');
+
+      process.chdir(originalCwd);
+      process.env.HOME = originalHome;
+    });
+
+    test('does not merge defaults when explicit path is provided', async () => {
+      const originalCwd = process.cwd();
+      const originalHome = process.env.HOME;
+      const workspaceDir = join(tempDir, 'workspace-explicit');
+      const homeDir = join(tempDir, 'home-explicit');
+      await mkdir(join(homeDir, '.config', 'mcp'), { recursive: true });
+      await mkdir(workspaceDir, { recursive: true });
+      await writeFile(
+        join(homeDir, '.config', 'mcp', 'mcp_servers.json'),
+        JSON.stringify({
+          mcpServers: {
+            personal: { command: 'todoist-mcp' },
+          },
+        }),
+      );
+      const explicitPath = join(workspaceDir, 'project.json');
+      await writeFile(
+        explicitPath,
+        JSON.stringify({
+          mcpServers: {
+            project: { command: 'playwright-mcp' },
+          },
+        }),
+      );
+      process.env.HOME = homeDir;
+      process.chdir(workspaceDir);
+
+      const config = await loadConfig(explicitPath);
+      expect(Object.keys(config.mcpServers)).toEqual(['project']);
+
+      process.chdir(originalCwd);
+      process.env.HOME = originalHome;
     });
 
     test('throws on missing config file', async () => {
@@ -74,7 +148,7 @@ describe('config', () => {
               headers: { Authorization: 'Bearer ${TEST_MCP_TOKEN}' },
             },
           },
-        })
+        }),
       );
 
       const config = await loadConfig(configPath);
@@ -98,7 +172,7 @@ describe('config', () => {
               env: { TOKEN: '${NONEXISTENT_VAR}' },
             },
           },
-        })
+        }),
       );
 
       const config = await loadConfig(configPath);
@@ -122,7 +196,7 @@ describe('config', () => {
               env: { TOKEN: '${ANOTHER_NONEXISTENT_VAR}' },
             },
           },
-        })
+        }),
       );
 
       await expect(loadConfig(configPath)).rejects.toThrow('MISSING_ENV_VAR');
@@ -136,10 +210,12 @@ describe('config', () => {
           mcpServers: {
             badserver: {},
           },
-        })
+        }),
       );
 
-      await expect(loadConfig(configPath)).rejects.toThrow('missing required field');
+      await expect(loadConfig(configPath)).rejects.toThrow(
+        'missing required field',
+      );
     });
 
     test('throws error on server with both command and url', async () => {
@@ -153,10 +229,12 @@ describe('config', () => {
               url: 'https://example.com',
             },
           },
-        })
+        }),
       );
 
-      await expect(loadConfig(configPath)).rejects.toThrow('both "command" and "url"');
+      await expect(loadConfig(configPath)).rejects.toThrow(
+        'both "command" and "url"',
+      );
     });
 
     test('throws error on null server config', async () => {
@@ -167,10 +245,12 @@ describe('config', () => {
           mcpServers: {
             nullserver: null,
           },
-        })
+        }),
       );
 
-      await expect(loadConfig(configPath)).rejects.toThrow('Invalid server configuration');
+      await expect(loadConfig(configPath)).rejects.toThrow(
+        'Invalid server configuration',
+      );
     });
   });
 
@@ -184,7 +264,7 @@ describe('config', () => {
             server1: { command: 'cmd1' },
             server2: { command: 'cmd2' },
           },
-        })
+        }),
       );
 
       const config = await loadConfig(configPath);
@@ -198,7 +278,7 @@ describe('config', () => {
         configPath,
         JSON.stringify({
           mcpServers: { known: { command: 'cmd' } },
-        })
+        }),
       );
 
       const config = await loadConfig(configPath);
@@ -217,7 +297,7 @@ describe('config', () => {
             beta: { command: 'b' },
             gamma: { url: 'https://example.com' },
           },
-        })
+        }),
       );
 
       const config = await loadConfig(configPath);
