@@ -64,11 +64,11 @@ export function configSearchError(): CliError {
   return {
     code: ErrorCode.CLIENT_ERROR,
     type: 'CONFIG_NOT_FOUND',
-    message: 'No mcp_servers.json found in search paths',
+    message: 'No default mcp_servers.json files found to merge',
     details:
-      'Searched: ./mcp_servers.json, ~/.mcp_servers.json, ~/.config/mcp/mcp_servers.json',
+      'Checked default paths: ./mcp_servers.json, ~/.mcp_servers.json, ~/.config/mcp/mcp_servers.json',
     suggestion:
-      'Create mcp_servers.json in current directory or use -c/--config to specify path',
+      'Create mcp_servers.json in one of the default paths, or use -c/--config / MCP_CONFIG_PATH to specify a file explicitly',
   };
 }
 
