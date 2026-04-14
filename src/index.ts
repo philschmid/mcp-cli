@@ -387,11 +387,14 @@ Environment Variables:
   MCP_DAEMON_TIMEOUT=N   Set daemon idle timeout in seconds (default: 60)
 
 Config File:
-  The CLI looks for mcp_servers.json in:
-    1. Path specified by MCP_CONFIG_PATH or -c/--config
-    2. ./mcp_servers.json (current directory)
-    3. ~/.mcp_servers.json
-    4. ~/.config/mcp/mcp_servers.json
+  Resolution rules:
+    1. MCP_CONFIG_PATH -> use only that file
+    2. -c/--config     -> use only that file
+    3. Otherwise merge existing default files:
+       - ./mcp_servers.json
+       - ~/.mcp_servers.json
+       - ~/.config/mcp/mcp_servers.json
+       Later files override earlier ones for the same server.
 `);
 }
 
