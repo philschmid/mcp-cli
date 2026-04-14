@@ -339,13 +339,18 @@ Restrict which tools are available from a server using `allowedTools` and `disab
 
 ### Config Resolution
 
-The CLI searches for configuration in this order:
+The CLI resolves configuration using these rules:
 
-1. `MCP_CONFIG_PATH` environment variable
-2. `-c/--config` command line argument
-3. `./mcp_servers.json` (current directory)
-4. `~/.mcp_servers.json`
-5. `~/.config/mcp/mcp_servers.json`
+1. If `MCP_CONFIG_PATH` is set, use only that file.
+2. If `-c/--config` is passed, use only that file.
+3. Otherwise, merge all existing default files in this order:
+   - `./mcp_servers.json` (current directory)
+   - `~/.mcp_servers.json`
+   - `~/.config/mcp/mcp_servers.json`
+
+When default files are merged, later files override earlier ones for the same server name.
+
+**Example:** keep personal tools in `~/.config/mcp/mcp_servers.json`, add project-local servers in `./mcp_servers.json`, and override a shared `github` server in the project file when needed.
 
 ### Environment Variables
 
