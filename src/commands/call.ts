@@ -7,6 +7,7 @@
  * - Errors always go to stderr
  */
 
+import { once } from 'node:events';
 import {
   type McpConnection,
   debug,
@@ -104,6 +105,14 @@ async function parseArgs(
   }
 }
 
+async function writeStdout(output: string): Promise<void> {
+  if (process.stdout.write(`${output}\n`)) {
+    return;
+  }
+
+  await once(process.stdout, 'drain');
+}
+
 /**
  * Execute the call command
  */
@@ -163,7 +172,7 @@ export async function callCommand(options: CallOptions): Promise<void> {
 
     // Extract text content from MCP response for CLI-friendly output
     // Uses formatToolResult which extracts text from MCP content array
-    console.log(formatToolResult(result));
+    await writeStdout(formatToolResult(result));
   } catch (error) {
     // Try to get available tools for better error message
     let availableTools: string[] | undefined;
