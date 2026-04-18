@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/philschmid/mcp-cli/main/mcp_servers.schema.json",
+  "title": "mcp-cli configuration",
+  "description": "Schema for mcp_servers.json used by mcp-cli.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mcpServers"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional schema reference for editor support."
+    },
+    "mcpServers": {
+      "type": "object",
+      "description": "Map of server names to stdio or HTTP server definitions.",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/serverConfig"
+      }
+    }
+  },
+  "$defs": {
+    "toolPatternList": {
+      "type": "array",
+      "description": "Glob patterns (`*`, `?`) used to allow or disable tools.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "baseServerConfig": {
+      "type": "object",
+      "properties": {
+        "allowedTools": {
+          "$ref": "#/$defs/toolPatternList"
+        },
+        "disabledTools": {
+          "$ref": "#/$defs/toolPatternList"
+        }
+      }
+    },
+    "stdioServerConfig": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseServerConfig"
+        },
+        {
+          "type": "object",
+          "required": ["command"],
+          "properties": {
+            "command": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Executable to launch for a local stdio MCP server."
+            },
+            "args": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Arguments passed to the local MCP server process."
+            },
+            "env": {
+              "type": "object",
+              "description": "Environment variables for the server process. Values may use ${VAR_NAME} substitution.",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "cwd": {
+              "type": "string",
+              "description": "Working directory for the local MCP server process."
+            }
+          },
+          "additionalProperties": false,
+          "not": {
+            "required": ["url"]
+          }
+        }
+      ]
+    },
+    "httpServerConfig": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseServerConfig"
+        },
+        {
+          "type": "object",
+          "required": ["url"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "URL for a remote MCP server."
+            },
+            "headers": {
+              "type": "object",
+              "description": "Optional HTTP headers. Values may use ${VAR_NAME} substitution.",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Per-server timeout override in seconds."
+            }
+          },
+          "additionalProperties": false,
+          "not": {
+            "required": ["command"]
+          }
+        }
+      ]
+    },
+    "serverConfig": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/stdioServerConfig"
+        },
+        {
+          "$ref": "#/$defs/httpServerConfig"
+        }
+      ]
+    }
+  }
+}
