@@ -2,14 +2,15 @@
  * Unit tests for output formatting
  */
 
-import { describe, test, expect } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import {
-  formatServerList,
-  formatSearchResults,
-  formatToolSchema,
-  formatToolResult,
-  formatJson,
   formatError,
+  formatJson,
+  formatSearchResults,
+  formatServerDetails,
+  formatServerList,
+  formatToolResult,
+  formatToolSchema,
 } from '../src/output';
 
 // Disable colors for testing
@@ -98,6 +99,36 @@ describe('output', () => {
 
       const withoutDesc = formatSearchResults(results, false);
       expect(withoutDesc).toContain('Tool description');
+    });
+  });
+
+  describe('formatServerDetails', () => {
+    test('redacts stdio args in server info output', () => {
+      const output = formatServerDetails(
+        'secret-server',
+        {
+          command: '/usr/bin/node',
+          args: ['server.js', '--api-key', 'super-secret-token'],
+        },
+        [],
+      );
+
+      expect(output).toContain('Command: node (3 hidden arguments)');
+      expect(output).not.toContain('super-secret-token');
+      expect(output).not.toContain('--api-key');
+      expect(output).not.toContain('server.js');
+    });
+
+    test('shows plain executable when stdio server has no args', () => {
+      const output = formatServerDetails(
+        'simple-server',
+        {
+          command: '/usr/local/bin/uvx',
+        },
+        [],
+      );
+
+      expect(output).toContain('Command: uvx');
     });
   });
 

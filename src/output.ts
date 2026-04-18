@@ -2,6 +2,7 @@
  * Output formatting utilities
  */
 
+import { basename } from 'node:path';
 import type { ToolInfo } from './client.js';
 import type { ServerConfig } from './config.js';
 import { isHttpServer } from './config.js';
@@ -98,6 +99,21 @@ export function formatSearchResults(
 }
 
 /**
+ * Format stdio command details without leaking full argument values.
+ */
+function formatStdioCommand(command: string, args?: string[]): string {
+  const executable = basename(command);
+  const argCount = args?.length ?? 0;
+
+  if (argCount === 0) {
+    return executable;
+  }
+
+  const suffix = argCount === 1 ? 'argument' : 'arguments';
+  return `${executable} (${argCount} hidden ${suffix})`;
+}
+
+/**
  * Format server details
  */
 export function formatServerDetails(
@@ -119,7 +135,7 @@ export function formatServerDetails(
   } else {
     lines.push(`${color('Transport:', colors.bold)} stdio`);
     lines.push(
-      `${color('Command:', colors.bold)} ${config.command} ${(config.args || []).join(' ')}`,
+      `${color('Command:', colors.bold)} ${formatStdioCommand(config.command, config.args)}`,
     );
   }
 
