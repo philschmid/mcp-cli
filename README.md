@@ -24,6 +24,9 @@ A lightweight, Bun-based CLI for interacting with [MCP (Model Context Protocol)]
 curl -fsSL https://raw.githubusercontent.com/philschmid/mcp-cli/main/install.sh | bash
 ```
 
+> [!NOTE]
+> The release installer currently depends on published platform binaries. If you are on **Linux arm64 / aarch64** and the latest release does not include `mcp-cli-linux-arm64`, the install script will fail over to a source install recommendation instead of succeeding.
+
 or 
 
 ```bash

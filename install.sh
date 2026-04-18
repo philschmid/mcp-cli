@@ -85,7 +85,16 @@ CHECKSUM_URL="https://github.com/$GITHUB_REPO/releases/latest/download/checksums
 echo -e "${BLUE}Downloading...${NC}"
 TMP_FILE=$(mktemp)
 if ! curl -fsSL "$DOWNLOAD_URL" -o "$TMP_FILE"; then
-    echo -e "${RED}Failed to download binary. Check if releases exist at:${NC}"
+    echo -e "${RED}Failed to download binary.${NC}"
+    echo "  URL: $DOWNLOAD_URL"
+    echo ""
+    if [ "$OS" = "linux" ] && [ "$ARCH" = "aarch64" ]; then
+        echo -e "${YELLOW}Linux arm64 release asset not found for the latest release.${NC}"
+        echo "Try installing from source instead:"
+        echo "  bun install -g https://github.com/$GITHUB_REPO"
+        echo ""
+    fi
+    echo -e "${RED}Check available releases at:${NC}"
     echo "  https://github.com/$GITHUB_REPO/releases"
     exit 1
 fi
