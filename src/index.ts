@@ -367,6 +367,7 @@ Options:
   -v, --version            Show version number
   -d, --with-descriptions  Include tool descriptions
   -c, --config <path>      Path to mcp_servers.json config file
+  --debug                  Show MCP server stderr/debug output
 
 Output:
   mcp-cli/info/grep        Human-readable text to stdout
@@ -385,12 +386,15 @@ Examples:
 Environment Variables:
   MCP_NO_DAEMON=1        Disable connection caching (force fresh connections)
   MCP_DAEMON_TIMEOUT=N   Set daemon idle timeout in seconds (default: 60)
+  MCP_DEBUG=1            Show MCP server stderr/debug output
 
 Config File:
-  The CLI looks for mcp_servers.json in:
-    1. Path specified by MCP_CONFIG_PATH or -c/--config
-    2. ./mcp_servers.json (current directory)
-    3. ~/.mcp_servers.json
+  The CLI resolves config like this:
+    1. Path specified by MCP_CONFIG_PATH or -c/--config (single file)
+    2. Otherwise merge all existing default config files with precedence:
+       ~/.config/mcp/mcp_servers.json
+       ~/.mcp_servers.json
+       ./mcp_servers.json (current directory)
     4. ~/.config/mcp/mcp_servers.json
 `);
 }

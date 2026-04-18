@@ -339,13 +339,16 @@ Restrict which tools are available from a server using `allowedTools` and `disab
 
 ### Config Resolution
 
-The CLI searches for configuration in this order:
+The CLI resolves configuration like this:
 
-1. `MCP_CONFIG_PATH` environment variable
-2. `-c/--config` command line argument
-3. `./mcp_servers.json` (current directory)
-4. `~/.mcp_servers.json`
-5. `~/.config/mcp/mcp_servers.json`
+1. If `MCP_CONFIG_PATH` is set, load only that file
+2. If `-c/--config <path>` is provided, load only that file
+3. Otherwise, merge all existing default config paths in precedence order:
+   - `~/.config/mcp/mcp_servers.json`
+   - `~/.mcp_servers.json`
+   - `./mcp_servers.json` (current directory)
+
+When the same server name appears in multiple default config files, the higher-precedence file overrides the lower-precedence one.
 
 ### Environment Variables
 
@@ -475,7 +478,8 @@ By default, the CLI uses **lazy-spawn connection pooling** to avoid repeated MCP
 ```bash
 MCP_NO_DAEMON=1 mcp-cli info      # Force fresh connection
 MCP_DAEMON_TIMEOUT=120 mcp-cli    # 2 minute idle timeout
-MCP_DEBUG=1 mcp-cli info          # See daemon debug output
+MCP_DEBUG=1 mcp-cli info          # See daemon + server debug output
+mcp-cli --debug info filesystem   # One-off debug mode without exporting env vars
 ```
 
 ### Connection Model (Direct)
