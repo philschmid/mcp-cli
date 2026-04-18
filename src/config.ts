@@ -396,39 +396,7 @@ function getDefaultConfigPaths(): string[] {
 /**
  * Load and parse MCP servers configuration
  */
-export async function loadConfig(
-  explicitPath?: string,
-): Promise<McpServersConfig> {
-  let configPath: string | undefined;
-
-  // Check explicit path from argument or environment
-  if (explicitPath) {
-    configPath = resolve(explicitPath);
-  } else if (process.env.MCP_CONFIG_PATH) {
-    configPath = resolve(process.env.MCP_CONFIG_PATH);
-  }
-
-  // If explicit path provided, it must exist
-  if (configPath) {
-    if (!existsSync(configPath)) {
-      throw new Error(formatCliError(configNotFoundError(configPath)));
-    }
-  } else {
-    // Search default paths
-    const searchPaths = getDefaultConfigPaths();
-    for (const path of searchPaths) {
-      if (existsSync(path)) {
-        configPath = path;
-        break;
-      }
-    }
-
-    if (!configPath) {
-      throw new Error(formatCliError(configSearchError()));
-    }
-  }
-
-  // Read and parse config
+async function parseConfigFile(configPath: string): Promise<McpServersConfig> {
   const file = Bun.file(configPath);
   const content = await file.text();
 
@@ -444,13 +412,6 @@ export async function loadConfig(
   // Validate structure
   if (!config.mcpServers || typeof config.mcpServers !== 'object') {
     throw new Error(formatCliError(configMissingFieldError(configPath)));
-  }
-
-  // Warn if no servers are configured
-  if (Object.keys(config.mcpServers).length === 0) {
-    console.error(
-      '[mcp-cli] Warning: No servers configured in mcpServers. Add server configurations to use MCP tools.',
-    );
   }
 
   // Validate individual server configs
@@ -494,6 +455,56 @@ export async function loadConfig(
         }),
       );
     }
+  }
+
+  return config;
+}
+
+export async function loadConfig(
+  explicitPath?: string,
+): Promise<McpServersConfig> {
+  let configPaths: string[] = [];
+
+  // Check explicit path from argument or environment
+  if (explicitPath) {
+    configPaths = [resolve(explicitPath)];
+  } else if (process.env.MCP_CONFIG_PATH) {
+    configPaths = [resolve(process.env.MCP_CONFIG_PATH)];
+  } else {
+    // Search default paths and merge all configs that exist.
+    configPaths = getDefaultConfigPaths().filter((path) => existsSync(path));
+  }
+
+  if (configPaths.length === 0) {
+    throw new Error(formatCliError(configSearchError()));
+  }
+
+  // Explicit path provided via arg/env must exist.
+  if (
+    (explicitPath || process.env.MCP_CONFIG_PATH) &&
+    !existsSync(configPaths[0])
+  ) {
+    throw new Error(formatCliError(configNotFoundError(configPaths[0])));
+  }
+
+  let config: McpServersConfig = { mcpServers: {} };
+
+  // Merge from lowest priority to highest priority so nearer configs override.
+  for (const configPath of [...configPaths].reverse()) {
+    const parsed = await parseConfigFile(configPath);
+    config = {
+      mcpServers: {
+        ...config.mcpServers,
+        ...parsed.mcpServers,
+      },
+    };
+  }
+
+  // Warn if no servers are configured
+  if (Object.keys(config.mcpServers).length === 0) {
+    console.error(
+      '[mcp-cli] Warning: No servers configured in mcpServers. Add server configurations to use MCP tools.',
+    );
   }
 
   // Substitute environment variables
