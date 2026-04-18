@@ -432,6 +432,24 @@ For Code Agents that support Agents Skills, like Gemini CLI, OpenCode or Claude 
 
 Create `mcp-cli/SKILL.md` in your skills directory. 
 
+## Troubleshooting noisy MCP servers
+
+Some MCP servers print informational logs to **stderr** during startup, watcher registration, or shutdown. This is especially common for language-server wrappers such as `mcp-language-server`, FastMCP-based servers, or tools that manage file watchers behind the scenes.
+
+Typical examples include:
+- watcher registration messages
+- LSP lifecycle warnings during shutdown
+- banner output from wrapped runtimes
+- broken pipe noise after the CLI terminates a stdio session
+
+If `mcp-cli` still lists tools successfully or returns a valid tool result, the server is usually functioning and you're seeing server-side log noise rather than a CLI failure.
+
+**How to evaluate it:**
+- Run `mcp-cli info <server>` to isolate one noisy server.
+- Use `mcp-cli --debug ...` (or `MCP_DEBUG=1`) when you explicitly want live stderr.
+- Expect extra shutdown chatter from stateful or watcher-heavy stdio servers.
+- Treat successful tool discovery / execution as the primary signal that the MCP integration is working.
+
 ## Architecture
 
 ### Connection Pooling (Daemon)
