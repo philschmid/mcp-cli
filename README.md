@@ -471,6 +471,8 @@ By default, the CLI uses **lazy-spawn connection pooling** to avoid repeated MCP
 - **Stale detection**: Config changes trigger re-spawn
 - **Fast fallback**: 5s spawn timeout, then direct connection
 
+**Important limitation:** the daemon optimizes repeated startup cost, but `mcp-cli` commands are still **request-oriented**, not interactive sessions. This works well for stateless servers and one-off tool calls, but it is not a replacement for a persistent browser/session workflow.
+
 **Control via environment:**
 ```bash
 MCP_NO_DAEMON=1 mcp-cli info      # Force fresh connection
@@ -481,6 +483,21 @@ MCP_DEBUG=1 mcp-cli info          # See daemon debug output
 ### Connection Model (Direct)
 
 When daemon is disabled (`MCP_NO_DAEMON=1`), the CLI uses a **lazy, on-demand connection strategy**. Server connections are only established when needed and closed immediately after use.
+
+### Stateful server limitations
+
+`mcp-cli` is best for **stateless MCP servers** or request/response-style tools. It is a poor fit for servers that expect one long-lived interactive session across multiple CLI invocations, such as:
+
+- browser automation servers (`chrome-devtools-mcp`, Playwright MCP wrappers)
+- servers with transaction/session semantics
+- tools that keep important in-memory state between calls
+
+Why this matters:
+- each CLI command is still treated as its own operation boundary
+- stdio servers may be started, reused briefly, or torn down independently of your intended workflow
+- multi-step browser flows like “open page -> fill form -> click button -> screenshot” are not guaranteed to preserve the state model you expect across separate shell commands
+
+If you need durable browser/session state, prefer a native MCP client or agent runtime that keeps a persistent session open instead of orchestrating the flow through separate `mcp-cli call ...` invocations.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
