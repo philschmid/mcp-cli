@@ -8,7 +8,7 @@ A lightweight, Bun-based CLI for interacting with [MCP (Model Context Protocol)]
 - 📦 **Single Binary** - Compile to standalone executable via `bun build --compile`
 - 🔧 **Shell-Friendly** - JSON output for call, pipes with `jq`, chaining support
 - 🤖 **Agent-Optimized** - Designed for AI coding agents (Gemini CLI, Claude Code, etc.)
-- 🔌 **Universal** - Supports both stdio and HTTP MCP servers
+- 🔌 **Universal** - Supports stdio and streamable HTTP MCP servers
 - ⚡ **Connection Pooling** - Lazy-spawn daemon keeps connections warm (60s idle timeout)
 - � **Tool Filtering** - Allow/disable specific tools per server via config
 - 📋 **Server Instructions** - Display MCP server instructions in output
@@ -477,6 +477,12 @@ MCP_NO_DAEMON=1 mcp-cli info      # Force fresh connection
 MCP_DAEMON_TIMEOUT=120 mcp-cli    # 2 minute idle timeout
 MCP_DEBUG=1 mcp-cli info          # See daemon debug output
 ```
+
+### HTTP transport support
+
+Remote `url` configs currently use the MCP SDK's **streamable HTTP** client transport. Local stdio servers continue to work as usual, and remote MCP servers should expose a streamable HTTP endpoint.
+
+**Important:** `mcp-cli` does **not** currently support legacy HTTP+SSE transports. If a remote MCP server only offers SSE, it may work in other MCP clients but not in `mcp-cli` yet.
 
 ### Connection Model (Direct)
 
