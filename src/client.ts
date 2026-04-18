@@ -332,12 +332,22 @@ function createStdioTransport(config: StdioServerConfig): StdioClientTransport {
  */
 export async function listTools(client: Client): Promise<ToolInfo[]> {
   return withRetry(async () => {
-    const result = await client.listTools();
-    return result.tools.map((tool: Tool) => ({
-      name: tool.name,
-      description: tool.description,
-      inputSchema: tool.inputSchema as Record<string, unknown>,
-    }));
+    const tools: ToolInfo[] = [];
+    let cursor: string | undefined;
+
+    do {
+      const result = await client.listTools(cursor ? { cursor } : undefined);
+      tools.push(
+        ...result.tools.map((tool: Tool) => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema as Record<string, unknown>,
+        })),
+      );
+      cursor = result.nextCursor;
+    } while (cursor);
+
+    return tools;
   }, 'list tools');
 }
 

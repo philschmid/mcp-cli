@@ -2,20 +2,22 @@
  * Unit tests for MCP client module
  */
 
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import {
+  getConcurrencyLimit,
+  getTimeoutMs,
+  isTransientError,
+  listTools,
+} from '../src/client';
 import {
   type HttpServerConfig,
   type StdioServerConfig,
-  isHttpServer,
-  isStdioServer,
   getMaxRetries,
   getRetryDelayMs,
+  isHttpServer,
+  isStdioServer,
 } from '../src/config';
-import {
-  isTransientError,
-  getTimeoutMs,
-  getConcurrencyLimit,
-} from '../src/client';
 
 describe('client', () => {
   describe('server config type guards', () => {
@@ -59,7 +61,9 @@ describe('client', () => {
 
   describe('isTransientError', () => {
     test('detects transient errors by code', () => {
-      const errWithCode = new Error('Connection failed') as NodeJS.ErrnoException;
+      const errWithCode = new Error(
+        'Connection failed',
+      ) as NodeJS.ErrnoException;
       errWithCode.code = 'ECONNREFUSED';
       expect(isTransientError(errWithCode)).toBe(true);
 
@@ -82,7 +86,9 @@ describe('client', () => {
     test('detects network-related errors by message', () => {
       expect(isTransientError(new Error('network error occurred'))).toBe(true);
       expect(isTransientError(new Error('network timeout'))).toBe(true);
-      expect(isTransientError(new Error('connection reset by peer'))).toBe(true);
+      expect(isTransientError(new Error('connection reset by peer'))).toBe(
+        true,
+      );
       expect(isTransientError(new Error('connection refused'))).toBe(true);
       expect(isTransientError(new Error('request timeout'))).toBe(true);
     });
@@ -95,10 +101,52 @@ describe('client', () => {
 
     test('avoids false positives with word boundaries', () => {
       // Should NOT match - these contain numbers but not as HTTP status codes
-      expect(isTransientError(new Error('Error at line 502 in file'))).toBe(false);
+      expect(isTransientError(new Error('Error at line 502 in file'))).toBe(
+        false,
+      );
       expect(isTransientError(new Error('Port 5029 is in use'))).toBe(false);
       // Should NOT match - network is just part of a word
-      expect(isTransientError(new Error('social network tool failed'))).toBe(false);
+      expect(isTransientError(new Error('social network tool failed'))).toBe(
+        false,
+      );
+    });
+  });
+
+  describe('listTools', () => {
+    test('follows nextCursor until all tool pages are loaded', async () => {
+      const calls: Array<{ cursor?: string }> = [];
+      const client = {
+        listTools: async (params?: { cursor?: string }) => {
+          calls.push({ cursor: params?.cursor });
+
+          if (!params?.cursor) {
+            return {
+              tools: [
+                {
+                  name: 'tool-a',
+                  description: 'first page',
+                  inputSchema: {},
+                },
+              ],
+              nextCursor: 'page-2',
+            };
+          }
+
+          return {
+            tools: [
+              {
+                name: 'tool-b',
+                description: 'second page',
+                inputSchema: {},
+              },
+            ],
+          };
+        },
+      };
+
+      const tools = await listTools(client as unknown as Client);
+      expect(tools.map((tool) => tool.name)).toEqual(['tool-a', 'tool-b']);
+      expect(calls).toEqual([{ cursor: undefined }, { cursor: 'page-2' }]);
     });
   });
 
@@ -109,12 +157,12 @@ describe('client', () => {
       if (originalEnv !== undefined) {
         process.env.MCP_TIMEOUT = originalEnv;
       } else {
-        delete process.env.MCP_TIMEOUT;
+        process.env.MCP_TIMEOUT = undefined;
       }
     });
 
     test('returns default of 1800000ms (30 minutes)', () => {
-      delete process.env.MCP_TIMEOUT;
+      process.env.MCP_TIMEOUT = undefined;
       expect(getTimeoutMs()).toBe(1800000);
     });
 
@@ -146,12 +194,12 @@ describe('client', () => {
       if (originalEnv !== undefined) {
         process.env.MCP_CONCURRENCY = originalEnv;
       } else {
-        delete process.env.MCP_CONCURRENCY;
+        process.env.MCP_CONCURRENCY = undefined;
       }
     });
 
     test('returns default of 5', () => {
-      delete process.env.MCP_CONCURRENCY;
+      process.env.MCP_CONCURRENCY = undefined;
       expect(getConcurrencyLimit()).toBe(5);
     });
 
@@ -183,12 +231,12 @@ describe('client', () => {
       if (originalEnv !== undefined) {
         process.env.MCP_MAX_RETRIES = originalEnv;
       } else {
-        delete process.env.MCP_MAX_RETRIES;
+        process.env.MCP_MAX_RETRIES = undefined;
       }
     });
 
     test('returns default of 3', () => {
-      delete process.env.MCP_MAX_RETRIES;
+      process.env.MCP_MAX_RETRIES = undefined;
       expect(getMaxRetries()).toBe(3);
     });
 
@@ -215,12 +263,12 @@ describe('client', () => {
       if (originalEnv !== undefined) {
         process.env.MCP_RETRY_DELAY = originalEnv;
       } else {
-        delete process.env.MCP_RETRY_DELAY;
+        process.env.MCP_RETRY_DELAY = undefined;
       }
     });
 
     test('returns default of 1000ms', () => {
-      delete process.env.MCP_RETRY_DELAY;
+      process.env.MCP_RETRY_DELAY = undefined;
       expect(getRetryDelayMs()).toBe(1000);
     });
 
