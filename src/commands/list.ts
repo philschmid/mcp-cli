@@ -3,6 +3,7 @@
  */
 
 import {
+  AuthRequiredError,
   type McpConnection,
   type ToolInfo,
   debug,
@@ -62,6 +63,7 @@ async function processWithConcurrency<T, R>(
 
 /**
  * Fetch tools from a single server (uses daemon if enabled)
+ * Never opens browser - CLI is used by AI agents, returns auth URL instead
  */
 async function fetchServerTools(
   serverName: string,
@@ -77,6 +79,17 @@ async function fetchServerTools(
     debug(`${serverName}: loaded ${tools.length} tools`);
     return { name: serverName, tools, instructions };
   } catch (error) {
+    // AuthRequiredError is caught and returned as a response, not retried
+    // This ensures the callback server stays running and the auth URL is shown
+    if (error instanceof AuthRequiredError) {
+      debug(`${serverName}: auth required - ${error.message}`);
+      return {
+        name: serverName,
+        tools: [],
+        error: error.message,
+      };
+    }
+
     const errorMsg = (error as Error).message;
     debug(`${serverName}: connection failed - ${errorMsg}`);
     return {

@@ -384,3 +384,46 @@ export function tooManyArgumentsError(
     suggestion: `Run 'mcp-cli --help' for correct usage`,
   };
 }
+
+// ============================================================================
+// OAuth Errors
+// ============================================================================
+
+export function oauthConfigError(
+  serverName: string,
+  details: string,
+): CliError {
+  return {
+    code: ErrorCode.CLIENT_ERROR,
+    type: 'OAUTH_CONFIG_ERROR',
+    message: `Invalid OAuth configuration for server "${serverName}"`,
+    details,
+    suggestion: 'Check your mcp_servers.json OAuth configuration',
+  };
+}
+
+export function oauthFlowError(serverName: string, cause: string): CliError {
+  let suggestion = 'Try again or check your OAuth server configuration';
+
+  if (cause.includes('timeout')) {
+    suggestion =
+      'Authorization timed out. Try again and complete the browser authorization within the time limit';
+  } else if (cause.includes('callback')) {
+    suggestion =
+      'Failed to receive OAuth callback. Ensure your firewall allows connections to localhost';
+  } else if (cause.includes('token')) {
+    suggestion =
+      'Token exchange failed. Check your client credentials and OAuth server configuration';
+  } else if (cause.includes('refresh')) {
+    suggestion =
+      'Token refresh failed. Your session may have expired - try re-authenticating';
+  }
+
+  return {
+    code: ErrorCode.AUTH_ERROR,
+    type: 'OAUTH_FLOW_ERROR',
+    message: `OAuth authentication failed for server "${serverName}"`,
+    details: cause,
+    suggestion,
+  };
+}

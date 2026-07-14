@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Non-Blocking OAuth Flow for AI Agents**
+  - `AuthRequiredError` now includes authorization URL for immediate action
+  - Callback server runs in background (5 min timeout) - CLI returns immediately
+  - `mcp-cli` (list all) shows working servers + auth URLs for servers needing login
+  - Random port by default to avoid conflicts with multiple OAuth servers
+  - Updated README with sequence diagram and AI agent guidance
+
 ## [0.3.0] - 2026-01-22
 
 ### Added

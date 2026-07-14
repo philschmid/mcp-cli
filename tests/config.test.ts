@@ -240,4 +240,159 @@ describe('config', () => {
       expect(isStdioServer({ url: 'https://example.com' })).toBe(false);
     });
   });
+
+  describe('OAuth config validation', () => {
+    test('accepts valid OAuth config with authorization_code', async () => {
+      const configPath = join(tempDir, 'oauth_auth_code.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              url: 'https://example.com',
+              oauth: {
+                grantType: 'authorization_code',
+                scope: 'read write',
+              },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      const server = config.mcpServers.test as any;
+      expect(server.oauth.grantType).toBe('authorization_code');
+      expect(server.oauth.scope).toBe('read write');
+    });
+
+    test('accepts valid OAuth config with client_credentials', async () => {
+      process.env.TEST_CLIENT_ID = 'test-id';
+      process.env.TEST_CLIENT_SECRET = 'test-secret';
+
+      const configPath = join(tempDir, 'oauth_client_creds.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              url: 'https://example.com',
+              oauth: {
+                grantType: 'client_credentials',
+                clientId: '${TEST_CLIENT_ID}',
+                clientSecret: '${TEST_CLIENT_SECRET}',
+              },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      const server = config.mcpServers.test as any;
+      expect(server.oauth.grantType).toBe('client_credentials');
+      expect(server.oauth.clientId).toBe('test-id');
+      expect(server.oauth.clientSecret).toBe('test-secret');
+
+      delete process.env.TEST_CLIENT_ID;
+      delete process.env.TEST_CLIENT_SECRET;
+    });
+
+    test('throws on invalid grantType', async () => {
+      const configPath = join(tempDir, 'oauth_bad_grant.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              url: 'https://example.com',
+              oauth: {
+                grantType: 'invalid_grant',
+              },
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('Invalid OAuth grantType');
+    });
+
+    test('throws on client_credentials without clientId', async () => {
+      const configPath = join(tempDir, 'oauth_no_client_id.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              url: 'https://example.com',
+              oauth: {
+                grantType: 'client_credentials',
+                clientSecret: 'secret',
+              },
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('requires clientId');
+    });
+
+    test('throws on client_credentials without clientSecret', async () => {
+      const configPath = join(tempDir, 'oauth_no_client_secret.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              url: 'https://example.com',
+              oauth: {
+                grantType: 'client_credentials',
+                clientId: 'client-id',
+              },
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('requires clientSecret');
+    });
+
+    test('throws on invalid callbackPort', async () => {
+      const configPath = join(tempDir, 'oauth_bad_port.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              url: 'https://example.com',
+              oauth: {
+                callbackPort: 99999,
+              },
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('Invalid callbackPort');
+    });
+
+    test('accepts valid callbackPort', async () => {
+      const configPath = join(tempDir, 'oauth_valid_port.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              url: 'https://example.com',
+              oauth: {
+                callbackPort: 9000,
+              },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      const server = config.mcpServers.test as any;
+      expect(server.oauth.callbackPort).toBe(9000);
+    });
+  });
 });

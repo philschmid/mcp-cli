@@ -2,6 +2,7 @@
  * MCP Client - Connection management for MCP servers
  */
 
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -25,6 +26,8 @@ import {
   cleanupOrphanedDaemons,
   getDaemonConnection,
 } from './daemon-client.js';
+import { formatCliError, oauthFlowError } from './errors.js';
+import { McpCliOAuthProvider } from './oauth/index.js';
 import { VERSION } from './version.js';
 
 // Re-export config utilities for convenience
@@ -47,6 +50,30 @@ export interface McpConnection {
   getInstructions: () => Promise<string | undefined>;
   close: () => Promise<void>;
   isDaemon: boolean;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export type ConnectOptions = Record<string, never>;
+
+/**
+ * Error thrown when authentication is required but interactive auth is disabled
+ */
+export class AuthRequiredError extends Error {
+  public readonly serverName: string;
+  public readonly authUrl: string | undefined;
+
+  constructor(serverName: string, authUrl?: string) {
+    const message = authUrl
+      ? `[AUTH REQUIRED] ${serverName}
+  Authenticate at: ${authUrl}
+  Callback server running in background (5 min timeout).
+  After authenticating, confirm "done" and retry this command.`
+      : `Server "${serverName}" requires authentication. Run 'mcp-cli info ${serverName}' to start authentication.`;
+    super(message);
+    this.name = 'AuthRequiredError';
+    this.serverName = serverName;
+    this.authUrl = authUrl;
+  }
 }
 
 export interface ServerInfo {
@@ -95,6 +122,11 @@ function getRetryConfig(): RetryConfig {
  * Uses error codes when available, falls back to message matching
  */
 export function isTransientError(error: Error): boolean {
+  // AuthRequiredError should never be retried - it indicates callback server is running
+  if (error.name === 'AuthRequiredError') {
+    return false;
+  }
+
   // Check error code first (more reliable than message matching)
   const nodeError = error as NodeJS.ErrnoException;
   if (nodeError.code) {
@@ -217,10 +249,12 @@ export async function safeClose(close: () => Promise<void>): Promise<void> {
 /**
  * Connect to an MCP server with retry logic
  * Captures stderr from stdio servers to include in error messages
+ * Handles OAuth flow for HTTP servers with authentication
  */
 export async function connectToServer(
   serverName: string,
   config: ServerConfig,
+  options: ConnectOptions = {},
 ): Promise<ConnectedClient> {
   // Collect stderr for better error messages
   const stderrChunks: string[] = [];
@@ -237,9 +271,29 @@ export async function connectToServer(
     );
 
     let transport: StdioClientTransport | StreamableHTTPClientTransport;
+    let authProvider: McpCliOAuthProvider | undefined;
 
     if (isHttpServer(config)) {
-      transport = createHttpTransport(config);
+      const result = createHttpTransport(serverName, config);
+      transport = result.transport;
+      authProvider = result.authProvider;
+
+      // Pre-start callback server for authorization_code flow to determine actual port
+      // This ensures the redirect_uri in the authorization request uses the correct port
+      const oauthConfig = (config as HttpServerConfig).oauth;
+      if (
+        !oauthConfig?.grantType ||
+        oauthConfig.grantType === 'authorization_code'
+      ) {
+        try {
+          await authProvider.preStartCallbackServer();
+        } catch (error) {
+          debug(
+            `Failed to pre-start callback server: ${(error as Error).message}`,
+          );
+          // Continue anyway - server will start during redirectToAuthorization
+        }
+      }
     } else {
       transport = createStdioTransport(config);
 
@@ -259,6 +313,17 @@ export async function connectToServer(
     try {
       await client.connect(transport);
     } catch (error) {
+      if (isOAuthNeeded(error as Error) && authProvider) {
+        debug(`OAuth authorization required for ${serverName}`);
+
+        // Always throw AuthRequiredError with auth URL - CLI is for AI agents
+        // Callback server continues running in background for 5 min
+        throw new AuthRequiredError(
+          serverName,
+          authProvider.capturedAuthUrl ?? undefined,
+        );
+      }
+
       // Enhance error with captured stderr
       const stderrOutput = stderrChunks.join('').trim();
       if (stderrOutput) {
@@ -289,17 +354,52 @@ export async function connectToServer(
 
 /**
  * Create HTTP transport for remote servers
+ * Always creates an auth provider to handle OAuth flows (server-initiated or explicit)
  */
 function createHttpTransport(
+  serverName: string,
   config: HttpServerConfig,
-): StreamableHTTPClientTransport {
+): {
+  transport: StreamableHTTPClientTransport;
+  authProvider: McpCliOAuthProvider;
+} {
   const url = new URL(config.url);
 
-  return new StreamableHTTPClientTransport(url, {
+  // Always create OAuth provider for HTTP servers to handle server-initiated OAuth
+  // If explicit oauth config exists, use it; otherwise use defaults
+  const oauthConfig = config.oauth || {};
+  const authProvider = new McpCliOAuthProvider(
+    serverName,
+    config.url,
+    oauthConfig,
+  );
+  debug(
+    `OAuth provider created for ${serverName} (${oauthConfig.grantType || 'authorization_code'})`,
+  );
+
+  const transport = new StreamableHTTPClientTransport(url, {
+    authProvider,
     requestInit: {
       headers: config.headers,
     },
   });
+
+  return { transport, authProvider };
+}
+
+/**
+ * Check if an error indicates OAuth authorization is needed
+ */
+function isOAuthNeeded(error: Error): boolean {
+  // Check for UnauthorizedError from SDK
+  if (error instanceof UnauthorizedError) {
+    return true;
+  }
+  // Check for invalid_token error in message (common OAuth error response)
+  if (error.message.includes('invalid_token')) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -390,6 +490,7 @@ export async function callTool(
 export async function getConnection(
   serverName: string,
   config: ServerConfig,
+  options: ConnectOptions = {},
 ): Promise<McpConnection> {
   // Clean up any orphaned daemons on first call
   await cleanupOrphanedDaemons();
@@ -437,7 +538,7 @@ export async function getConnection(
 
   // Fall back to direct connection
   debug(`Using direct connection for ${serverName}`);
-  const { client, close } = await connectToServer(serverName, config);
+  const { client, close } = await connectToServer(serverName, config, options);
 
   return {
     async listTools(): Promise<ToolInfo[]> {
