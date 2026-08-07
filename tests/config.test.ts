@@ -128,6 +128,147 @@ describe('config', () => {
       await expect(loadConfig(configPath)).rejects.toThrow('MISSING_ENV_VAR');
     });
 
+    test('substitutes {file:path} from file contents', async () => {
+      const tokenPath = join(tempDir, 'my_token');
+      await writeFile(tokenPath, 'file-secret-token\n');
+
+      const configPath = join(tempDir, 'file_config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              url: 'https://example.com',
+              headers: { Authorization: 'Bearer {file:' + tokenPath + '}' },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      const server = config.mcpServers.test as any;
+      expect(server.headers.Authorization).toBe('Bearer file-secret-token');
+    });
+
+    test('trims file content in {file:...} substitution', async () => {
+      const tokenPath = join(tempDir, 'token_with_newlines');
+      await writeFile(tokenPath, '\n\n  trimmed-value  \n\n');
+
+      const configPath = join(tempDir, 'trim_config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              command: 'echo',
+              env: { TOKEN: '{file:' + tokenPath + '}' },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      const server = config.mcpServers.test as any;
+      expect(server.env.TOKEN).toBe('trimmed-value');
+    });
+
+    test('expands ~ in {file:~/...} to home directory', async () => {
+      const { homedir } = await import('node:os');
+      const { join: joinPath } = await import('node:path');
+      const { rm } = await import('node:fs/promises');
+      const relName = '.mcp_cli_test_token_' + Date.now();
+      const fullPath = joinPath(homedir(), relName);
+      await writeFile(fullPath, 'tilde-token');
+
+      try {
+        const configPath = join(tempDir, 'tilde_config.json');
+        await writeFile(
+          configPath,
+          JSON.stringify({
+            mcpServers: {
+              test: {
+                command: 'echo',
+                env: { TOKEN: '{file:~/' + relName + '}' },
+              },
+            },
+          })
+        );
+
+        const config = await loadConfig(configPath);
+        const server = config.mcpServers.test as any;
+        expect(server.env.TOKEN).toBe('tilde-token');
+      } finally {
+        await rm(fullPath, { force: true });
+      }
+    });
+
+    test('{file:...} and ${VAR} coexist in same value', async () => {
+      const tokenPath = join(tempDir, 'coexist_token');
+      await writeFile(tokenPath, 'from-file');
+      process.env.TEST_COEXIST_VAR = 'from-env';
+
+      const configPath = join(tempDir, 'coexist_config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              command: 'echo',
+              env: { COMBINED: '${TEST_COEXIST_VAR}+{file:' + tokenPath + '}' },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      const server = config.mcpServers.test as any;
+      expect(server.env.COMBINED).toBe('from-env+from-file');
+
+      delete process.env.TEST_COEXIST_VAR;
+    });
+
+    test('throws on missing file in strict mode (default)', async () => {
+      delete process.env.MCP_STRICT_ENV;
+
+      const configPath = join(tempDir, 'missing_file_strict.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              command: 'echo',
+              env: { TOKEN: '{file:/nonexistent/path/token}' },
+            },
+          },
+        })
+      );
+
+      await expect(loadConfig(configPath)).rejects.toThrow('MISSING_FILE');
+    });
+
+    test('warns on missing file in non-strict mode', async () => {
+      process.env.MCP_STRICT_ENV = 'false';
+
+      const configPath = join(tempDir, 'missing_file_warn.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            test: {
+              command: 'echo',
+              env: { TOKEN: 'Bearer {file:/nonexistent/path/token}' },
+            },
+          },
+        })
+      );
+
+      const config = await loadConfig(configPath);
+      const server = config.mcpServers.test as any;
+      expect(server.env.TOKEN).toBe('Bearer ');
+
+      delete process.env.MCP_STRICT_ENV;
+    });
+
     test('throws error on empty server config', async () => {
       const configPath = join(tempDir, 'empty_server.json');
       await writeFile(

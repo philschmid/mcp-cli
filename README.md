@@ -299,7 +299,16 @@ The CLI uses `mcp_servers.json`, compatible with Claude Desktop, Gemini or VS Co
 }
 ```
 
-**Environment Variable Substitution:** Use `${VAR_NAME}` syntax anywhere in the config. Values are substituted at load time. By default, missing environment variables cause an error with a clear message. Set `MCP_STRICT_ENV=false` to use empty values instead (with a warning).
+**Variable Substitution:** Two syntaxes are supported anywhere in the config, substituted at load time:
+
+| Syntax | Source | Example |
+|--------|--------|---------|
+| `${VAR_NAME}` | Environment variable | `"Bearer ${API_TOKEN}"` |
+| `{file:/path/to/file}` | File contents (trimmed) | `"Bearer {file:~/.ssh/api_token}"` |
+
+`{file:...}` reads the file at the given path and trims whitespace (e.g., trailing newlines). The `~` prefix expands to your home directory.
+
+By default, missing environment variables or unreadable files cause an error with a clear message. Set `MCP_STRICT_ENV=false` to use empty values instead (with a warning).
 
 ### Tool Filtering
 
