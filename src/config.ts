@@ -2,7 +2,7 @@
  * MCP-CLI Configuration Types and Loader
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
@@ -317,21 +317,41 @@ function isStrictEnvMode(): boolean {
 
 /**
  * Substitute environment variables in a string
- * Supports ${VAR_NAME} syntax
+ * Supports ${VAR_NAME} syntax and {file:path} syntax
  *
- * By default (strict mode), throws an error when referenced env var is not set.
+ * ${VAR_NAME}    — substituted from environment variables
+ * {file:path}    — substituted from file contents (trimmed, ~ expands to home dir)
+ *
+ * By default (strict mode), throws an error when referenced env var is not set
+ * or file cannot be read.
  * Set MCP_STRICT_ENV=false to warn instead of error.
  */
 function substituteEnvVars(value: string): string {
   const missingVars: string[] = [];
+  const missingFiles: string[] = [];
 
-  const result = value.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+  // 1. Substitute ${VAR_NAME} from environment
+  let result = value.replace(/\$\{([^}]+)\}/g, (match, varName) => {
     const envValue = process.env[varName];
     if (envValue === undefined) {
       missingVars.push(varName);
       return '';
     }
     return envValue;
+  });
+
+  // 2. Substitute {file:path} from file contents
+  result = result.replace(/\{file:([^}]+)\}/g, (match, filePath) => {
+    const expandedPath = filePath.startsWith('~/')
+      ? join(homedir(), filePath.slice(2))
+      : filePath;
+
+    try {
+      return readFileSync(expandedPath, 'utf-8').trim();
+    } catch (e) {
+      missingFiles.push(filePath);
+      return '';
+    }
   });
 
   if (missingVars.length > 0) {
@@ -346,6 +366,25 @@ function substituteEnvVars(value: string): string {
           message: message,
           details: 'Referenced in config but not set in environment',
           suggestion: `Set the variable(s) before running: export ${missingVars[0]}="value" or set MCP_STRICT_ENV=false to use empty values`,
+        }),
+      );
+    }
+    // Non-strict mode: warn but continue
+    console.error(`[mcp-cli] Warning: ${message}`);
+  }
+
+  if (missingFiles.length > 0) {
+    const fileList = missingFiles.map((f) => `{file:${f}}`).join(', ');
+    const message = `Cannot read file${missingFiles.length > 1 ? 's' : ''}: ${fileList}`;
+
+    if (isStrictEnvMode()) {
+      throw new Error(
+        formatCliError({
+          code: ErrorCode.CLIENT_ERROR,
+          type: 'MISSING_FILE',
+          message: message,
+          details: 'Referenced in config but file could not be read',
+          suggestion: 'Check file path and permissions, or set MCP_STRICT_ENV=false to use empty values',
         }),
       );
     }
